@@ -153,13 +153,15 @@ def resnet_layer(inputs,
                   strides=strides,
                   padding='same',
                   kernel_initializer='he_normal',
-                  kernel_regularizer=l2(1e-4))
+                  #kernel_regularizer=l2(1e-4)
+                         )
     conv2 = layers.Conv2D(num_filters,
                          kernel_size=kernel_size,
                          strides=strides,
                          padding='same',
                          kernel_initializer='he_normal',
-                         kernel_regularizer=l2(1e-4))
+                         #kernel_regularizer=l2(1e-4)
+                          )
     x = inputs
     if conv_first:
         x = conv(x)
@@ -188,7 +190,8 @@ def sr_resnet_simp(input_shape):
                          strides=(1,1),
                          padding='same',
                          kernel_initializer='he_normal',
-                         kernel_regularizer=l2(1e-4))
+                         #kernel_regularizer=l2(1e-4)
+                         )
     res_in = conv(inputs)
     x = resnet_layer(inputs=res_in,
                      num_filters=32,
@@ -202,7 +205,8 @@ def sr_resnet_simp(input_shape):
                          strides=(1, 1),
                          padding='same',
                          kernel_initializer='he_normal',
-                         kernel_regularizer=l2(1e-4))
+                         #kernel_regularizer=l2(1e-4)
+                             )
     outputs = conv_out(up_samp)
     # Instantiate model.
     model = Model(inputs=inputs, outputs=outputs)
