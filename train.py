@@ -14,7 +14,7 @@ from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras import layers
 from tensorflow.keras import backend as K
 from tensorflow.keras.callbacks import Callback
-from keras.regularizers import l2
+from tensorflow.keras.regularizers import l2
 import wandb
 from wandb.keras import WandbCallback
 
