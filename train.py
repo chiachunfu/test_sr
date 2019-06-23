@@ -154,7 +154,12 @@ def resnet_layer(inputs,
                   padding='same',
                   kernel_initializer='he_normal',
                   kernel_regularizer=l2(1e-4))
-
+    conv2 = layers.Conv2D(num_filters,
+                         kernel_size=kernel_size,
+                         strides=strides,
+                         padding='same',
+                         kernel_initializer='he_normal',
+                         kernel_regularizer=l2(1e-4))
     x = inputs
     if conv_first:
         x = conv(x)
@@ -162,14 +167,14 @@ def resnet_layer(inputs,
             x = BatchNormalization()(x)
         if activation is not None:
             x = layers.Activation(activation)(x)
-        x = conv(x)
+        y = conv2(x)
     else:
         if batch_normalization:
             x = BatchNormalization()(x)
         if activation is not None:
             x = layers.Activation(activation)(x)
-        x = conv(x)
-    return x
+        y = conv2(x)
+    return y
 
 
 
