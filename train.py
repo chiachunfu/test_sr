@@ -14,7 +14,7 @@ from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras import layers
 from tensorflow.keras import backend as K
 from tensorflow.keras.callbacks import Callback
-from keras.regularizers import l2
+from tensorflow.keras.regularizers import l2
 import wandb
 from wandb.keras import WandbCallback
 
@@ -52,8 +52,8 @@ def image_generator(batch_size, img_dir):
             (batch_size, config.input_width, config.input_height, 3))
         large_images = np.zeros(
             (batch_size, config.output_width, config.output_height, 3))
-        large_images = np.zeros(
-            (batch_size, config.input_width*2, config.input_height*2, 3))
+        #large_images = np.zeros(
+        #    (batch_size, config.input_width*2, config.input_height*2, 3))
         random.shuffle(input_filenames)
         if counter+batch_size >= len(input_filenames):
             counter = 0
@@ -61,13 +61,14 @@ def image_generator(batch_size, img_dir):
             img = input_filenames[counter + i]
             small_images[i] = np.array(Image.open(img)) / 255.0
             img = Image.open(img.replace("-in.jpg", "-out.jpg"))
-            if 'P' in img.mode:  # check if image is a palette type
-                img = img.convert("RGB")  # convert it to RGB
-                img = img.resize((config.input_width*2, config.input_height*2), Image.ANTIALIAS)  # resize it
-                img = img.convert("P", dither=Image.NONE, palette=Image.ADAPTIVE)
-                # convert back to palette
-            else:
-                img = img.resize((config.input_width*2, config.input_height*2), Image.ANTIALIAS)  # regular resize
+            if 0:
+                if 'P' in img.mode:  # check if image is a palette type
+                    img = img.convert("RGB")  # convert it to RGB
+                    img = img.resize((config.input_width*2, config.input_height*2), Image.ANTIALIAS)  # resize it
+                    img = img.convert("P", dither=Image.NONE, palette=Image.ADAPTIVE)
+                    # convert back to palette
+                else:
+                    img = img.resize((config.input_width*2, config.input_height*2), Image.ANTIALIAS)  # regular resize
             large_images[i] = np.array(img) / 255.0
         yield (small_images, large_images)
         counter += batch_size
@@ -121,7 +122,7 @@ class ImageLogger(Callback):
         in_resized = []
         for arr in in_sample_images:
             # Simple upsampling
-            in_resized.append(arr.repeat(2, axis=0).repeat(2, axis=1))
+            in_resized.append(arr.repeat(8, axis=0).repeat(8, axis=1))
         wandb.log({
             "examples": [wandb.Image(np.concatenate([in_resized[i] * 255, o * 255, out_sample_images[i] * 255], axis=1)) for i, o in enumerate(preds)]
         }, commit=False)
@@ -148,27 +149,81 @@ def resnet_layer(inputs,
     # Returns
         x (tensor): tensor as input to the next layer
     """
-    conv = layers.Conv2D(num_filters,
-                  kernel_size=kernel_size,
-                  strides=strides,
-                  padding='same',
-                  kernel_initializer='he_normal',
-                  kernel_regularizer=l2(1e-4))
+
+    #feature depth transformation
+
+    filter_max = 64
+    #bottleneck
+
 
     x = inputs
-    if conv_first:
-        x = conv(x)
-        if batch_normalization:
-            x = BatchNormalization()(x)
-        if activation is not None:
-            x = layers.Activation(activation)(x)
-        x = conv(x)
+    if num_filters <=filter_max:
+        conv = layers.Conv2D(num_filters,
+                             kernel_size=kernel_size,
+                             strides=strides,
+                             padding='same',
+                             kernel_initializer='he_normal',
+                             # kernel_regularizer=l2(1e-4)
+                             )
+        conv2 = layers.Conv2D(num_filters,
+                              kernel_size=kernel_size,
+                              strides=strides,
+                              padding='same',
+                              kernel_initializer='he_normal',
+                              # kernel_regularizer=l2(1e-4)
+                              )
+        if conv_first:
+            x = conv(x)
+            if batch_normalization:
+                x = layers.BatchNormalization()(x)
+            if activation is not None:
+                x = layers.Activation(activation)(x)
+            x = conv2(x)
+        else:
+            if batch_normalization:
+                x = layers.BatchNormalization()(x)
+            if activation is not None:
+                x = layers.Activation(activation)(x)
+            x = conv2(x)
     else:
-        if batch_normalization:
-            x = BatchNormalization()(x)
-        if activation is not None:
-            x = layers.Activation(activation)(x)
-        x = conv(x)
+        conv_bot_in = layers.Conv2D(filter_max,
+                                    kernel_size=1,
+                                    strides=strides,
+                                    padding='same',
+                                    kernel_initializer='he_normal',
+                                    # kernel_regularizer=l2(1e-4)
+                                    )
+        conv_bot_out = layers.Conv2D(num_filters,
+                                     kernel_size=1,
+                                     strides=strides,
+                                     padding='same',
+                                     kernel_initializer='he_normal',
+                                     # kernel_regularizer=l2(1e-4)
+                                     )
+        conv = layers.Conv2D(filter_max,
+                             kernel_size=kernel_size,
+                             strides=strides,
+                             padding='same',
+                             kernel_initializer='he_normal',
+                             # kernel_regularizer=l2(1e-4)
+                             )
+        conv2 = layers.Conv2D(filter_max,
+                              kernel_size=kernel_size,
+                              strides=strides,
+                              padding='same',
+                              kernel_initializer='he_normal',
+                              # kernel_regularizer=l2(1e-4)
+                              )
+        if conv_first:
+            x = conv_bot_in(x)
+            if batch_normalization:
+                x = layers.BatchNormalization()(x)
+            if activation is not None:
+                x = layers.Activation(activation)(x)
+            x = conv2(x)
+            x = conv_bot_out(x)
+
+
     return x
 
 
@@ -176,29 +231,55 @@ def resnet_layer(inputs,
 def sr_resnet_simp(input_shape):
     #inputs = Input(shape=input_shape)
     # v2 performs Conv2D with BN-ReLU on input before splitting into 2 paths
-
+    num_filters = 32
+    scale_ratio = 8
+    num_filters_out = 3 * scale_ratio**2
     inputs = layers.Input(shape=input_shape)
-    conv = layers.Conv2D(32,
-                         kernel_size=(1,1),
-                         strides=(1,1),
+
+    res_in = layers.Conv2D(num_filters,
+                         kernel_size=3,
+                         strides=1,
                          padding='same',
                          kernel_initializer='he_normal',
-                         kernel_regularizer=l2(1e-4))
-    res_in = conv(inputs)
+                         #kernel_regularizer=l2(1e-4)
+                         ) (inputs)
     x = resnet_layer(inputs=res_in,
-                     num_filters=32,
+                     num_filters=num_filters,
                      conv_first=True)
     res_out = layers.add([res_in, x])
 
-
-    up_samp = SubpixelConv2D([None, config.input_width, config.input_height, 32], scale=2)(res_out)
-    conv_out = layers.Conv2D(3,
-                         kernel_size=(1, 1),
-                         strides=(1, 1),
+    res_in2 = layers.Conv2D(num_filters_out,
+                         kernel_size=3,
+                         strides=1,
                          padding='same',
                          kernel_initializer='he_normal',
-                         kernel_regularizer=l2(1e-4))
-    outputs = conv_out(up_samp)
+                         #kernel_regularizer=l2(1e-4)
+                         )(res_out)
+    x = resnet_layer(inputs=res_in2,
+                     num_filters=num_filters_out,
+                     conv_first=True)
+
+
+
+
+    res_out2 = layers.add([res_in2, x])
+    res_in3 = layers.Conv2D(num_filters_out,
+                            kernel_size=3,
+                            strides=1,
+                            padding='same',
+                            kernel_initializer='he_normal',
+                            # kernel_regularizer=l2(1e-4)
+                            )(inputs)
+    res_out3 = layers.add([res_in3, res_out2])
+    up_samp = SubpixelConv2D([None, config.input_width, config.input_height, num_filters_out], scale=8)(res_out3)
+    outputs = layers.Conv2D(3,
+                         kernel_size=1,
+                         strides=1,
+                         padding='same',
+                         kernel_initializer='he_normal',
+                         #kernel_regularizer=l2(1e-4)
+                             )(up_samp)
+
     # Instantiate model.
     model = Model(inputs=inputs, outputs=outputs)
     return model
@@ -221,13 +302,18 @@ def sr_resnet_simp(input_shape):
 
 model = sr_resnet_simp(input_shape=(config.input_width, config.input_height, 3))
 
-# DONT ALTER metrics=[perceptual_distance]
-model.compile(optimizer='adam', loss='mse',
-              metrics=[perceptual_distance])
 
-model.fit_generator(image_generator(config.batch_size, train_dir),
-                    steps_per_epoch=config.steps_per_epoch,
-                    epochs=config.num_epochs, callbacks=[
-                        ImageLogger(), WandbCallback()],
-                    validation_steps=config.val_steps_per_epoch,
-                    validation_data=val_generator)
+#print(model.summary())
+if 1:
+    opt = tf.keras.optimizers.Adam(lr=0.001)
+
+    # DONT ALTER metrics=[perceptual_distance]
+    model.compile(optimizer='adam', loss='mse',
+                  metrics=[perceptual_distance])
+
+    model.fit_generator(image_generator(config.batch_size, train_dir),
+                        steps_per_epoch=config.steps_per_epoch,
+                        epochs=config.num_epochs, callbacks=[
+                            ImageLogger(), WandbCallback()],
+                        validation_steps=config.val_steps_per_epoch,
+                        validation_data=val_generator)
