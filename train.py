@@ -285,22 +285,23 @@ def sr_resnet_simp(input_shape):
     return model
 
 
-#model = Sequential()
+model = Sequential()
 
-#model.add(layers.Conv2D(32, (3, 3), activation='relu', padding='same',
-#                        input_shape=(config.input_width, config.input_height, 3)))
+model.add(layers.Conv2D(64, (3, 3), activation='relu', padding='same',
+                        input_shape=(config.input_width, config.input_height, 3)))
 #model.add(layers.Conv2D(32, (3, 3), padding='same',
 #                        input_shape=(config.input_width, config.input_height, 32)))\
 
 #model.add(SubpixelConv2D([None, config.input_width, config.input_height,32],scale=2))
+model.add(layers.UpSampling2D())
 
-#model.add(layers.Conv2D(3, (3, 3), activation='relu', padding='same'))
-#model.add(layers.UpSampling2D())
-#model.add(layers.Conv2D(3, (3, 3), activation='relu', padding='same'))
-#model.add(layers.UpSampling2D())
-#model.add(layers.Conv2D(3, (3, 3), activation='relu', padding='same'))
+model.add(layers.Conv2D(64, (3, 3), activation='relu', padding='same'))
+model.add(layers.UpSampling2D())
+model.add(layers.Conv2D(64, (3, 3), activation='relu', padding='same'))
+model.add(layers.UpSampling2D())
+model.add(layers.Conv2D(3, (3, 3), activation='relu', padding='same'))
 
-model = sr_resnet_simp(input_shape=(config.input_width, config.input_height, 3))
+#model = sr_resnet_simp(input_shape=(config.input_width, config.input_height, 3))
 
 
 #print(model.summary())
