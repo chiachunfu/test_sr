@@ -27,7 +27,7 @@ config.input_height = 32
 config.input_width = 32
 config.output_height = 256
 config.output_width = 256
-
+scale = 2
 val_dir = 'data/test'
 train_dir = 'data/train'
 
@@ -52,8 +52,8 @@ def image_generator(batch_size, img_dir):
             (batch_size, config.input_width, config.input_height, 3))
         large_images = np.zeros(
             (batch_size, config.output_width, config.output_height, 3))
-        #large_images = np.zeros(
-        #    (batch_size, config.input_width*2, config.input_height*2, 3))
+        large_images = np.zeros(
+            (batch_size, config.input_width*scale, config.input_height*scale, 3))
         random.shuffle(input_filenames)
         if counter+batch_size >= len(input_filenames):
             counter = 0
@@ -61,7 +61,7 @@ def image_generator(batch_size, img_dir):
             img = input_filenames[counter + i]
             small_images[i] = np.array(Image.open(img)) / 255.0
             img = Image.open(img.replace("-in.jpg", "-out.jpg"))
-            if 0:
+            if 1:
                 if 'P' in img.mode:  # check if image is a palette type
                     img = img.convert("RGB")  # convert it to RGB
                     img = img.resize((config.input_width*2, config.input_height*2), Image.ANTIALIAS)  # resize it
@@ -122,7 +122,7 @@ class ImageLogger(Callback):
         in_resized = []
         for arr in in_sample_images:
             # Simple upsampling
-            in_resized.append(arr.repeat(8, axis=0).repeat(8, axis=1))
+            in_resized.append(arr.repeat(scale, axis=0).repeat(scale, axis=1))
         wandb.log({
             "examples": [wandb.Image(np.concatenate([in_resized[i] * 255, o * 255, out_sample_images[i] * 255], axis=1)) for i, o in enumerate(preds)]
         }, commit=False)
@@ -216,6 +216,7 @@ def resnet_layer(inputs,
                               )
         if conv_first:
             x = conv_bot_in(x)
+            x = conv(x)
             if batch_normalization:
                 x = layers.BatchNormalization()(x)
             if activation is not None:
@@ -232,8 +233,8 @@ def sr_resnet_simp(input_shape):
     #inputs = Input(shape=input_shape)
     # v2 performs Conv2D with BN-ReLU on input before splitting into 2 paths
     num_filters = 32
-    scale_ratio = 8
-    num_filters_out = 3 * scale_ratio**2
+    scale_ratio = 2
+    num_filters_out = max(64, 3 * scale_ratio**2)
     inputs = layers.Input(shape=input_shape)
 
     res_in = layers.Conv2D(num_filters,
@@ -271,7 +272,7 @@ def sr_resnet_simp(input_shape):
                             # kernel_regularizer=l2(1e-4)
                             )(inputs)
     res_out3 = layers.add([res_in3, res_out2])
-    up_samp = SubpixelConv2D([None, config.input_width, config.input_height, num_filters_out], scale=8)(res_out3)
+    up_samp = SubpixelConv2D([None, config.input_width, config.input_height, num_filters_out], scale=scale)(res_out3)
     outputs = layers.Conv2D(3,
                          kernel_size=1,
                          strides=1,
@@ -284,27 +285,27 @@ def sr_resnet_simp(input_shape):
     model = Model(inputs=inputs, outputs=outputs)
     return model
 
+if 0:
+    model = Sequential()
 
-model = Sequential()
+    model.add(layers.Conv2D(64, (3, 3), activation='relu', padding='same',
+                            input_shape=(config.input_width, config.input_height, 3)))
+    #model.add(layers.Conv2D(32, (3, 3), padding='same',
+    #                        input_shape=(config.input_width, config.input_height, 32)))\
 
-model.add(layers.Conv2D(64, (3, 3), activation='relu', padding='same',
-                        input_shape=(config.input_width, config.input_height, 3)))
-#model.add(layers.Conv2D(32, (3, 3), padding='same',
-#                        input_shape=(config.input_width, config.input_height, 32)))\
+    #model.add(SubpixelConv2D([None, config.input_width, config.input_height,32],scale=2))
+    model.add(layers.UpSampling2D())
 
-#model.add(SubpixelConv2D([None, config.input_width, config.input_height,32],scale=2))
-model.add(layers.UpSampling2D())
+    model.add(layers.Conv2D(64, (3, 3), activation='relu', padding='same'))
+    model.add(layers.UpSampling2D())
+    model.add(layers.Conv2D(64, (3, 3), activation='relu', padding='same'))
+    model.add(layers.UpSampling2D())
+    model.add(layers.Conv2D(3, (3, 3), activation='relu', padding='same'))
 
-model.add(layers.Conv2D(64, (3, 3), activation='relu', padding='same'))
-model.add(layers.UpSampling2D())
-model.add(layers.Conv2D(64, (3, 3), activation='relu', padding='same'))
-model.add(layers.UpSampling2D())
-model.add(layers.Conv2D(3, (3, 3), activation='relu', padding='same'))
-
-#model = sr_resnet_simp(input_shape=(config.input_width, config.input_height, 3))
+model = sr_resnet_simp(input_shape=(config.input_width, config.input_height, 3))
 
 
-#print(model.summary())
+print(model.summary())
 if 1:
     opt = tf.keras.optimizers.Adam(lr=0.001)
 
