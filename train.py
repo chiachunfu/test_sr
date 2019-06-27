@@ -306,8 +306,10 @@ model = sr_resnet_simp(input_shape=(config.input_width, config.input_height, 3))
 
 
 print(model.summary())
+for l in model.layers:
+    print(type(l))
 if 1:
-    opt = tf.keras.optimizers.Adam(lr=0.001)
+    opt = tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
 
     # DONT ALTER metrics=[perceptual_distance]
     model.compile(optimizer='adam', loss='mse',
