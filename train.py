@@ -5,6 +5,7 @@ import os
 from PIL import Image
 import numpy as np
 import tensorflow as tf
+from model import sr_resnet
 
 configProt = tf.ConfigProto()
 configProt.gpu_options.allow_growth = True
@@ -21,13 +22,13 @@ from wandb.keras import WandbCallback
 run = wandb.init(project='superres')
 config = run.config
 
-config.num_epochs = 50
+config.num_epochs = 500
 config.batch_size = 32
 config.input_height = 32
 config.input_width = 32
 config.output_height = 256
 config.output_width = 256
-scale = 2
+scale = 8
 val_dir = 'data/test'
 train_dir = 'data/train'
 
@@ -42,6 +43,17 @@ config.steps_per_epoch = len(
 config.val_steps_per_epoch = len(
     glob.glob(val_dir + "/*-in.jpg")) // config.batch_size
 
+
+def image_transform(img, type):
+    if type == 0:
+        pass
+    elif type == 4:
+        img = img.transpose(0)
+    elif type == 5:
+        img = img.transpose(1)
+    else:
+        img = img.rotate(90 * type)
+    return img
 
 def image_generator(batch_size, img_dir):
     """A generator that returns small images and large images.  DO NOT ALTER the validation set"""
@@ -58,47 +70,26 @@ def image_generator(batch_size, img_dir):
         if counter+batch_size >= len(input_filenames):
             counter = 0
         for i in range(batch_size):
+            type = random.randint(0, 5)
             img = input_filenames[counter + i]
-            small_images[i] = np.array(Image.open(img)) / 255.0
+            small_img = Image.open(img)
+            small_img = image_transform(small_img, type)
+            small_images[i] = np.array(small_img) / 255.0
             img = Image.open(img.replace("-in.jpg", "-out.jpg"))
             if 1:
                 if 'P' in img.mode:  # check if image is a palette type
                     img = img.convert("RGB")  # convert it to RGB
-                    img = img.resize((config.input_width*2, config.input_height*2), Image.ANTIALIAS)  # resize it
-                    img = img.convert("P", dither=Image.NONE, palette=Image.ADAPTIVE)
+                    img = img.resize((config.input_width*scale, config.input_height*scale), Image.ANTIALIAS)  # resize it
+                    large_image = img.convert("P", dither=Image.NONE, palette=Image.ADAPTIVE)
                     # convert back to palette
                 else:
-                    img = img.resize((config.input_width*2, config.input_height*2), Image.ANTIALIAS)  # regular resize
-            large_images[i] = np.array(img) / 255.0
+                    large_image = img.resize((config.input_width*scale, config.input_height*scale), Image.ANTIALIAS)  # regular resize
+            large_image = image_transform(large_image, type)
+
+            large_images[i] = np.array(large_image) / 255.0
         yield (small_images, large_images)
         counter += batch_size
 
-def SubpixelConv2D(input_shape, scale=2):
-    """
-    Keras layer to do subpixel convolution.
-    NOTE: Tensorflow backend only. Uses tf.depth_to_space
-    Ref:
-        [1] Real-Time Single Image and Video Super-Resolution Using an Efficient Sub-Pixel Convolutional Neural Network
-            Shi et Al.
-            https://arxiv.org/abs/1609.05158
-    :param input_shape: tensor shape, (batch, height, width, channel)
-    :param scale: upsampling scale. Default=4
-    :return:
-    """
-    # upsample using depth_to_space
-    def subpixel_shape(input_shape):
-        dims = [input_shape[0],
-                input_shape[1] * scale,
-                input_shape[2] * scale,
-                int(input_shape[3] / (scale ** 2))]
-        output_shape = tuple(dims)
-        return output_shape
-
-    def subpixel(x):
-        return tf.depth_to_space(x, scale)
-
-
-    return layers.Lambda(subpixel, output_shape=subpixel_shape, name='subpixel')
 
 def perceptual_distance(y_true, y_pred):
     """Calculate perceptual distance, DO NOT ALTER"""
@@ -127,163 +118,7 @@ class ImageLogger(Callback):
             "examples": [wandb.Image(np.concatenate([in_resized[i] * 255, o * 255, out_sample_images[i] * 255], axis=1)) for i, o in enumerate(preds)]
         }, commit=False)
 
-def resnet_layer(inputs,
-                 num_filters=16,
-                 kernel_size=3,
-                 strides=1,
-                 activation='relu',
-                 batch_normalization=False,
-                 conv_first=True):
-    """2D Convolution-Batch Normalization-Activation stack builder
 
-    # Arguments
-        inputs (tensor): input tensor from input image or previous layer
-        num_filters (int): Conv2D number of filters
-        kernel_size (int): Conv2D square kernel dimensions
-        strides (int): Conv2D square stride dimensions
-        activation (string): activation name
-        batch_normalization (bool): whether to include batch normalization
-        conv_first (bool): conv-bn-activation (True) or
-            bn-activation-conv (False)
-
-    # Returns
-        x (tensor): tensor as input to the next layer
-    """
-
-    #feature depth transformation
-
-    filter_max = 64
-    #bottleneck
-
-
-    x = inputs
-    if num_filters <=filter_max:
-        conv = layers.Conv2D(num_filters,
-                             kernel_size=kernel_size,
-                             strides=strides,
-                             padding='same',
-                             kernel_initializer='he_normal',
-                             # kernel_regularizer=l2(1e-4)
-                             )
-        conv2 = layers.Conv2D(num_filters,
-                              kernel_size=kernel_size,
-                              strides=strides,
-                              padding='same',
-                              kernel_initializer='he_normal',
-                              # kernel_regularizer=l2(1e-4)
-                              )
-        if conv_first:
-            x = conv(x)
-            if batch_normalization:
-                x = layers.BatchNormalization()(x)
-            if activation is not None:
-                x = layers.Activation(activation)(x)
-            x = conv2(x)
-        else:
-            if batch_normalization:
-                x = layers.BatchNormalization()(x)
-            if activation is not None:
-                x = layers.Activation(activation)(x)
-            x = conv2(x)
-    else:
-        conv_bot_in = layers.Conv2D(filter_max,
-                                    kernel_size=1,
-                                    strides=strides,
-                                    padding='same',
-                                    kernel_initializer='he_normal',
-                                    # kernel_regularizer=l2(1e-4)
-                                    )
-        conv_bot_out = layers.Conv2D(num_filters,
-                                     kernel_size=1,
-                                     strides=strides,
-                                     padding='same',
-                                     kernel_initializer='he_normal',
-                                     # kernel_regularizer=l2(1e-4)
-                                     )
-        conv = layers.Conv2D(filter_max,
-                             kernel_size=kernel_size,
-                             strides=strides,
-                             padding='same',
-                             kernel_initializer='he_normal',
-                             # kernel_regularizer=l2(1e-4)
-                             )
-        conv2 = layers.Conv2D(filter_max,
-                              kernel_size=kernel_size,
-                              strides=strides,
-                              padding='same',
-                              kernel_initializer='he_normal',
-                              # kernel_regularizer=l2(1e-4)
-                              )
-        if conv_first:
-            x = conv_bot_in(x)
-            x = conv(x)
-            if batch_normalization:
-                x = layers.BatchNormalization()(x)
-            if activation is not None:
-                x = layers.Activation(activation)(x)
-            x = conv2(x)
-            x = conv_bot_out(x)
-
-
-    return x
-
-
-
-def sr_resnet_simp(input_shape):
-    #inputs = Input(shape=input_shape)
-    # v2 performs Conv2D with BN-ReLU on input before splitting into 2 paths
-    num_filters = 32
-    scale_ratio = 2
-    num_filters_out = max(64, 3 * scale_ratio**2)
-    inputs = layers.Input(shape=input_shape)
-
-    res_in = layers.Conv2D(num_filters,
-                         kernel_size=3,
-                         strides=1,
-                         padding='same',
-                         kernel_initializer='he_normal',
-                         #kernel_regularizer=l2(1e-4)
-                         ) (inputs)
-    x = resnet_layer(inputs=res_in,
-                     num_filters=num_filters,
-                     conv_first=True)
-    res_out = layers.add([res_in, x])
-
-    res_in2 = layers.Conv2D(num_filters_out,
-                         kernel_size=3,
-                         strides=1,
-                         padding='same',
-                         kernel_initializer='he_normal',
-                         #kernel_regularizer=l2(1e-4)
-                         )(res_out)
-    x = resnet_layer(inputs=res_in2,
-                     num_filters=num_filters_out,
-                     conv_first=True)
-
-
-
-
-    res_out2 = layers.add([res_in2, x])
-    res_in3 = layers.Conv2D(num_filters_out,
-                            kernel_size=3,
-                            strides=1,
-                            padding='same',
-                            kernel_initializer='he_normal',
-                            # kernel_regularizer=l2(1e-4)
-                            )(inputs)
-    res_out3 = layers.add([res_in3, res_out2])
-    up_samp = SubpixelConv2D([None, config.input_width, config.input_height, num_filters_out], scale=scale)(res_out3)
-    outputs = layers.Conv2D(3,
-                         kernel_size=1,
-                         strides=1,
-                         padding='same',
-                         kernel_initializer='he_normal',
-                         #kernel_regularizer=l2(1e-4)
-                             )(up_samp)
-
-    # Instantiate model.
-    model = Model(inputs=inputs, outputs=outputs)
-    return model
 
 if 0:
     model = Sequential()
@@ -302,7 +137,7 @@ if 0:
     model.add(layers.UpSampling2D())
     model.add(layers.Conv2D(3, (3, 3), activation='relu', padding='same'))
 
-model = sr_resnet_simp(input_shape=(config.input_width, config.input_height, 3))
+model = sr_resnet(input_shape=(config.input_width, config.input_height, 3),scale_ratio=scale)
 
 
 print(model.summary())
