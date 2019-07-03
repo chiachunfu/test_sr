@@ -6,6 +6,7 @@ from PIL import Image
 import numpy as np
 import tensorflow as tf
 from model import sr_resnet
+import re
 
 configProt = tf.ConfigProto()
 configProt.gpu_options.allow_growth = True
@@ -69,6 +70,17 @@ def image_generator(batch_size, img_dir):
         random.shuffle(input_filenames)
         if counter+batch_size >= len(input_filenames):
             counter = 0
+        carnation_cnt = 0
+        carnation_check = 1
+        while carnation_check:
+            for i in range(batch_size):
+                f = input_filenames[counter+i]
+                if re.search('-carnation',f):
+                    carnation_cnt += 1
+            if carnation_cnt >= int(batch_size / 4):
+                counter += batch_size
+            else:
+                carnation_check = 0
         for i in range(batch_size):
             type = random.randint(0, 5)
             img = input_filenames[counter + i]
