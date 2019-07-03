@@ -78,7 +78,9 @@ def image_generator(batch_size, img_dir):
                 if re.search('-carnation',f):
                     carnation_cnt += 1
             if carnation_cnt >= int(batch_size / 4):
-                random.shuffle(input_filenames[counter:len(input_filenames)])
+                temp = input_filenames[counter:len(input_filenames)]
+                random.shuffle(temp)
+                input_filenames[counter:len(input_filenames)] = temp
             else:
                 carnation_check = 0
         for i in range(batch_size):
