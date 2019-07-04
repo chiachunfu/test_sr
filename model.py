@@ -7,7 +7,7 @@ from layers import resnet_layer, SubpixelConv2D
 def sr_resnet(input_shape,scale_ratio):
     #inputs = Input(shape=input_shape)
     # v2 performs Conv2D with BN-ReLU on input before splitting into 2 paths
-    num_filters = 32
+    num_filters = 64
     reg_scale = 0
     #scale_ratio = 2
     num_filters_out = max(64, 3 * scale_ratio**2)
@@ -28,11 +28,10 @@ def sr_resnet(input_shape,scale_ratio):
                          )
         return add([res_in, x])
 
+
     for l in range(num_res_layer):
 
-        x = resnet_layer(inputs=x,
-                         num_filters=num_filters * 2,
-                         )
+        x = res_blocks(x,num_filters)
 
 
 
