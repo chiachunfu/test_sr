@@ -118,6 +118,10 @@ def perceptual_distance(y_true, y_pred):
 
     return K.mean(K.sqrt((((512+rmean)*r*r)/256) + 4*g*g + (((767-rmean)*b*b)/256)))
 
+def psnr(y_true, y_pred):
+    """Calculate psnr"""
+    return tf.image.psnr(y_true, y_pred, max_val=1.0)
+
 
 val_generator = image_generator(config.batch_size, val_dir)
 in_sample_images, out_sample_images = next(val_generator)
@@ -163,8 +167,8 @@ if 1:
     opt = tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
 
     # DONT ALTER metrics=[perceptual_distance]
-    model.compile(optimizer='adam', loss='mse',
-                  metrics=[perceptual_distance])
+    model.compile(optimizer='adam', loss='mae',
+                  metrics=[perceptual_distance, psnr])
 
     model.fit_generator(image_generator(config.batch_size, train_dir),
                         steps_per_epoch=config.steps_per_epoch,
