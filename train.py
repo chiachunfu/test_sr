@@ -31,7 +31,7 @@ config.output_height = 256
 config.output_width = 256
 scale = 8
 val_dir = 'data/test'
-train_dir = 'data/train_test'
+train_dir = 'data/train'
 
 # automatically get the data if it doesn't exist
 if not os.path.exists("data"):
