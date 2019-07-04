@@ -31,7 +31,7 @@ config.output_height = 256
 config.output_width = 256
 scale = 8
 val_dir = 'data/test'
-train_dir = 'data/train'
+train_dir = 'data/train_test'
 
 # automatically get the data if it doesn't exist
 if not os.path.exists("data"):
@@ -87,6 +87,7 @@ def image_generator(batch_size, img_dir):
         for i in range(batch_size):
             type = random.randint(0, 5)
             img = input_filenames[counter + i]
+            #print(img)
             small_img = Image.open(img)
             small_img = image_transform(small_img, type)
             small_images[i] = np.array(small_img) / 255.0
@@ -156,8 +157,8 @@ model = sr_resnet(input_shape=(config.input_width, config.input_height, 3),scale
 
 
 print(model.summary())
-for l in model.layers:
-    print(type(l))
+#for l in model.layers:
+    #print(type(l))
 if 1:
     opt = tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
 
