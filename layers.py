@@ -2,6 +2,22 @@ from tensorflow.keras.layers import Conv2D, BatchNormalization, Activation, Lamb
 from tensorflow.keras.regularizers import l2
 import tensorflow as tf
 
+class Conv2DWeightNorm(tf.layers.Conv2D):
+
+  def build(self, input_shape):
+    self.wn_g = self.add_weight(
+        name='wn_g',
+        shape=(self.filters,),
+        dtype=self.dtype,
+        initializer=tf.initializers.ones,
+        trainable=True,
+    )
+    super(Conv2DWeightNorm, self).build(input_shape)
+    square_sum = tf.reduce_sum(
+        tf.square(self.kernel), [0, 1, 2], keepdims=False)
+    inv_norm = tf.rsqrt(square_sum)
+    self.kernel = self.kernel * (inv_norm * self.wn_g)
+
 
 def SubpixelConv2D(input_shape, scale=8):
     """
@@ -61,14 +77,14 @@ def resnet_layer(inputs,
 
     input_chan_num = inputs.get_shape()[-1]
     if num_filters <= filter_max:
-        conv = Conv2D(num_filters,
+        conv = Conv2DWeightNorm(num_filters,
                              kernel_size=kernel_size,
                              strides=strides,
                              padding='same',
                              kernel_initializer=kernel_initializer,
                              kernel_regularizer=l2(reg_scale)
                              )
-        conv2 = Conv2D(num_filters,
+        conv2 = Conv2DWeightNorm(num_filters,
                        kernel_size=kernel_size,
                        strides=strides,
                        padding='same',
@@ -85,28 +101,28 @@ def resnet_layer(inputs,
         x = conv2(x)
 
     else: ## bottleneck structure
-        conv_bot_in = Conv2D(filter_max,
+        conv_bot_in = Conv2DWeightNorm(filter_max,
                              kernel_size=1,
                              strides=strides,
                              padding='same',
                              kernel_initializer=kernel_initializer,
                              kernel_regularizer=l2(reg_scale)
                                     )
-        conv_bot_out = Conv2D(num_filters,
+        conv_bot_out = Conv2DWeightNorm(num_filters,
                               kernel_size=1,
                               strides=strides,
                               padding='same',
                               kernel_initializer=kernel_initializer,
                               kernel_regularizer=l2(reg_scale)
                                      )
-        conv = Conv2D(filter_max,
+        conv = Conv2DWeightNorm(filter_max,
                              kernel_size=kernel_size,
                              strides=strides,
                              padding='same',
                              kernel_initializer=kernel_initializer,
                              kernel_regularizer=l2(reg_scale)
                              )
-        conv2 = Conv2D(filter_max,
+        conv2 = Conv2DWeightNorm(filter_max,
                        kernel_size=kernel_size,
                        strides=strides,
                        padding='same',

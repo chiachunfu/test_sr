@@ -2,7 +2,7 @@
 from tensorflow.keras.layers import Conv2D, BatchNormalization, Activation, Input, add
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.models import Sequential, Model
-from layers import resnet_layer, SubpixelConv2D
+from layers import resnet_layer, SubpixelConv2D, Conv2DWeightNorm
 
 def sr_resnet(input_shape,scale_ratio):
     #inputs = Input(shape=input_shape)
@@ -13,7 +13,7 @@ def sr_resnet(input_shape,scale_ratio):
     num_filters_out = max(64, 3 * scale_ratio**2)
     inputs = Input(shape=input_shape)
 
-    x = Conv2D(num_filters,
+    x = Conv2DWeightNorm(num_filters,
                kernel_size=3,
                strides=1,
                padding='same',
@@ -35,7 +35,7 @@ def sr_resnet(input_shape,scale_ratio):
 
 
 
-    pixelshuf_in = Conv2D(num_filters_out,
+    pixelshuf_in = Conv2DWeightNorm(num_filters_out,
                          kernel_size=3,
                          strides=1,
                          padding='same',
@@ -47,7 +47,7 @@ def sr_resnet(input_shape,scale_ratio):
 
     #res_out2 = layers.add([res_in2, x])
 
-    pixelshuf_skip_in = Conv2D(num_filters_out,
+    pixelshuf_skip_in = Conv2DWeightNorm(num_filters_out,
                                kernel_size=3,
                                strides=1,
                                padding='same',

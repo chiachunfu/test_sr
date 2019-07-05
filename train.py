@@ -85,7 +85,7 @@ def image_generator(batch_size, img_dir):
             else:
                 carnation_check = 0
         for i in range(batch_size):
-            type = random.randint(0, 5)
+            type = random.randint(0, 5) #augment option
             img = input_filenames[counter + i]
             #print(img)
             small_img = Image.open(img)
@@ -164,10 +164,10 @@ print(model.summary())
 #for l in model.layers:
     #print(type(l))
 if 1:
-    opt = tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
+    opt = AdamWithWeightnorm(lr=0.001,decay=0.9)
 
     # DONT ALTER metrics=[perceptual_distance]
-    model.compile(optimizer='adam', loss='mae',
+    model.compile(optimizer='adam', loss='mse',
                   metrics=[perceptual_distance, psnr])
 
     model.fit_generator(image_generator(config.batch_size, train_dir),
