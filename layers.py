@@ -1,6 +1,7 @@
-from tensorflow.keras.layers import Conv2D, BatchNormalization, Activation, Lambda
+from tensorflow.keras.layers import Conv2D, BatchNormalization, Activation, Lambda, add, multiply,GlobalAveragePooling2D,Dense
 from tensorflow.keras.regularizers import l2
 import tensorflow as tf
+from tensorflow.keras import backend as K
 
 class Conv2DWeightNorm(tf.layers.Conv2D):
 
@@ -76,6 +77,7 @@ def resnet_layer(inputs,
     """
 
     input_chan_num = inputs.get_shape()[-1]
+    #print(inputs.get_shape())
     if num_filters <= filter_max:
         conv = Conv2DWeightNorm(num_filters,
                              kernel_size=kernel_size,
@@ -140,8 +142,35 @@ def resnet_layer(inputs,
         x = conv2(x)
         x = conv_bot_out(x)
 
+    x = add([inputs, x])
 
     return x
 
+def attention_layer(input, reduction_ratio):
+    """
+    :param input: input tensor
+    :param reduction_ratio: reduction ratio for w1
+    :return: output tensor
+    """
+    input_chan_num = int(input.get_shape()[-1])
+    #print(input_chan_num)
+    #print(type(input_chan_num))
+    #print(tf.divide(input_chan_num, reduction_ratio))
+    gap = GlobalAveragePooling2D()(input)
+    gap = K.expand_dims(gap,1)
+    gap = K.expand_dims(gap,1)
 
+    #print(gap.get_shape())
+    down_scale = Dense(int(input_chan_num/reduction_ratio),
+                        activation='relu',
+                       use_bias=False
+                        )(gap)
+    up_scale = Dense(input_chan_num ,
+                        activation='sigmoid',
+                     use_bias=False,
+                     )(down_scale)
+    up_scale = tf.squeeze(up_scale, [1, 2])
+    x = multiply([input, up_scale])
+
+    return input
 
