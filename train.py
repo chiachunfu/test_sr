@@ -184,6 +184,6 @@ if 1:
     model.fit_generator(image_generator(config.batch_size, train_dir),
                         steps_per_epoch=config.steps_per_epoch,
                         epochs=config.num_epochs, callbacks=[
-                            ImageLogger(), WandbCallback(),lrate],
+                            ImageLogger(), WandbCallback()],
                         validation_steps=config.val_steps_per_epoch,
                         validation_data=val_generator)

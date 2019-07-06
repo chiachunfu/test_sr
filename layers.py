@@ -58,6 +58,7 @@ def resnet_layer(inputs,
                  batch_normalization=False,
                  weight_normalization=False,
                  kernel_initializer='he_normal',
+                 res_scale=0,
                  reg_scale=0
                  ):
     """2D Convolution-Batch Normalization-Activation stack builder
@@ -141,7 +142,8 @@ def resnet_layer(inputs,
             x = Activation(activation)(x)
         x = conv2(x)
         x = conv_bot_out(x)
-
+    if res_scale >= 0:
+        x = Lambda(lambda x: x * res_scale)(x)
     x = add([inputs, x])
 
     return x

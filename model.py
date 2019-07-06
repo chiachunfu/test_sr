@@ -28,17 +28,24 @@ def sr_resnet(input_shape,scale_ratio):
                          )
         return x
 
+    def res_scaling_blocks(res_in, num_chans):
+        x = resnet_layer(inputs=res_in,
+                         num_filters=num_chans,
+                         res_scale=0.2
+                         )
+        return x
+
     def res_chan_attention_blocks(res_in, num_chans, reduction_ratio):
         x = resnet_layer(inputs=res_in,
-                         num_filters=num_chans
+                         num_filters=num_chans,
                          )
         x = attention_layer(x, 4)
         return x
 
     for l in range(num_res_layer):
 
-        #x = res_blocks(x,num_filters)
-        x = res_chan_attention_blocks(x,num_filters,4)
+        x = res_blocks(x,num_filters)
+        #x = res_chan_attention_blocks(x,num_filters,4)
 
     #print(type(x))
     num_filters2 = 256
