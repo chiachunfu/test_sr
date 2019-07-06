@@ -7,6 +7,9 @@ import numpy as np
 import tensorflow as tf
 from model import sr_resnet
 import re
+import tarfile
+from urllib.request import urlretrieve
+import shutil
 
 configProt = tf.ConfigProto()
 configProt.gpu_options.allow_growth = True
@@ -23,7 +26,7 @@ from wandb.keras import WandbCallback
 run = wandb.init(project='superres')
 config = run.config
 
-config.num_epochs = 1000
+config.num_epochs = 10000
 config.batch_size = 32
 config.input_height = 32
 config.input_width = 32
@@ -31,13 +34,47 @@ config.output_height = 256
 config.output_width = 256
 scale = 8
 val_dir = 'data/test'
-train_dir = 'data/train'
+train_dir = 'data/train_new'
 
 # automatically get the data if it doesn't exist
 if not os.path.exists("data"):
     print("Downloading flower dataset...")
     subprocess.check_output(
         "mkdir data && curl https://storage.googleapis.com/wandb/flower-enhance.tar.gz | tar xz -C data", shell=True)
+
+def download_flowers_data():
+    dataset_folder = os.path.dirname(os.path.abspath(__file__))
+    if not os.path.exists(os.path.join(dataset_folder, "jpg")):
+        print('Downloading data from http://www.robots.ox.ac.uk/~vgg/data/flowers/102/ ...')
+        tar_filename = os.path.join(dataset_folder, "102flowers.tgz")
+        label_filename = os.path.join(dataset_folder, "imagelabels.mat")
+        set_filename = os.path.join(dataset_folder, "setid.mat")
+        if not os.path.exists(tar_filename):
+            urlretrieve("http://www.robots.ox.ac.uk/~vgg/data/flowers/102/102flowers.tgz", tar_filename)
+        if not os.path.exists(label_filename):
+            urlretrieve("http://www.robots.ox.ac.uk/~vgg/data/flowers/102/imagelabels.mat", label_filename)
+        if not os.path.exists(set_filename):
+            urlretrieve("http://www.robots.ox.ac.uk/~vgg/data/flowers/102/setid.mat", set_filename)
+
+        print('Extracting ' + tar_filename + '...')
+        tarfile.open(tar_filename).extractall(path=dataset_folder)
+
+        print('Copying map files ...')
+        shutil.copytree('./data/train','./data/train_new')
+        # get image paths and 0-based image labels
+        image_paths = np.array(sorted(glob.glob(dataset_folder + '/jpg/*.jpg')))
+        for f in image_paths:
+            f_arr = f.split('/')
+            new_filename = f_arr[-1]
+            img = Image.open(f)
+            img_lr = img.resize((32,32), Image.BICUBIC)
+            img_hr = img.resize((256,256), Image.BICUBIC)
+            img_lr.save('./data/train_new/' + new_filename.replace('.jpg', '-in.jpg'))
+            img_hr.save('./data/train_new/' + new_filename.replace('.jpg', '-out.jpg'))
+        os.remove(tar_filename)
+        #os.remove(os.path.join(dataset_folder, "jpg"))
+
+download_flowers_data()
 
 config.steps_per_epoch = len(
     glob.glob(train_dir + "/*-in.jpg")) // config.batch_size
@@ -125,8 +162,7 @@ def psnr(y_true, y_pred):
 def psnr_v2(y_true, y_pred):
     max_pixel = 1.0
     return (10.0 * K.log((max_pixel ** 2) / (K.mean(K.square(y_pred - y_true), axis=-1)))) / 2.303
-val_generator = image_generator(config.batch_size, val_dir)
-in_sample_images, out_sample_images = next(val_generator)
+
 
 
 class ImageLogger(Callback):
@@ -167,6 +203,8 @@ if 0:
 
 model = sr_resnet(input_shape=(config.input_width, config.input_height, 3),scale_ratio=scale)
 
+val_generator = image_generator(config.batch_size, val_dir)
+in_sample_images, out_sample_images = next(val_generator)
 
 print(model.summary())
 #for l in model.layers:
