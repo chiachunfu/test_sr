@@ -23,7 +23,7 @@ from wandb.keras import WandbCallback
 run = wandb.init(project='superres')
 config = run.config
 
-config.num_epochs = 500
+config.num_epochs = 2000
 config.batch_size = 32
 config.input_height = 32
 config.input_width = 32
@@ -169,7 +169,7 @@ if 1:
     opt = tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
 
     # DONT ALTER metrics=[perceptual_distance]
-    model.compile(optimizer='adam', loss='mae',
+    model.compile(optimizer='adam', loss='mse',
                   metrics=[perceptual_distance, psnr, psnr_v2])
 
     model.fit_generator(image_generator(config.batch_size, train_dir),

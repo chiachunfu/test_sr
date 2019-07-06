@@ -41,6 +41,20 @@ def sr_resnet(input_shape,scale_ratio):
         x = res_chan_attention_blocks(x,num_filters,4)
 
     #print(type(x))
+    num_filters2 = 256
+
+    x = Conv2DWeightNorm(256,
+                         kernel_size=1,
+                         strides=1,
+                         padding='same',
+                         kernel_initializer='he_normal',
+                         kernel_regularizer=l2(reg_scale)
+                         )(x)
+    for l in range(4):
+
+        #x = res_blocks(x,num_filters)
+        x = res_chan_attention_blocks(x,num_filters2,16)
+
 
     pixelshuf_in = Conv2DWeightNorm(num_filters_out,
                          kernel_size=3,
