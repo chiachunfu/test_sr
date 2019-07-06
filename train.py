@@ -26,7 +26,7 @@ from wandb.keras import WandbCallback
 run = wandb.init(project='superres')
 config = run.config
 
-config.num_epochs = 10000
+config.num_epochs = 2000
 config.batch_size = 32
 config.input_height = 32
 config.input_width = 32
@@ -34,7 +34,7 @@ config.output_height = 256
 config.output_width = 256
 scale = 8
 val_dir = 'data/test'
-train_dir = 'data/train_new'
+train_dir = 'data/train'
 
 # automatically get the data if it doesn't exist
 if not os.path.exists("data"):
@@ -74,7 +74,7 @@ def download_flowers_data():
         os.remove(tar_filename)
         #os.remove(os.path.join(dataset_folder, "jpg"))
 
-download_flowers_data()
+#download_flowers_data()
 
 config.steps_per_epoch = len(
     glob.glob(train_dir + "/*-in.jpg")) // config.batch_size
@@ -93,7 +93,7 @@ def image_transform(img, type):
         img = img.rotate(90 * type)
     return img
 
-def image_generator(batch_size, img_dir):
+def train_image_generator(batch_size, img_dir):
     """A generator that returns small images and large images.  DO NOT ALTER the validation set"""
     input_filenames = glob.glob(img_dir + "/*-in.jpg")
     counter = 0
@@ -143,6 +143,31 @@ def image_generator(batch_size, img_dir):
         yield (small_images, large_images)
         counter += batch_size
 
+
+def image_generator(batch_size, img_dir):
+    """A generator that returns small images and large images.  DO NOT ALTER the validation set"""
+    input_filenames = glob.glob(img_dir + "/*-in.jpg")
+    counter = 0
+    while True:
+        small_images = np.zeros(
+            (batch_size, config.input_width, config.input_height, 3))
+        large_images = np.zeros(
+            (batch_size, config.output_width, config.output_height, 3))
+        large_images = np.zeros(
+            (batch_size, config.input_width*scale, config.input_height*scale, 3))
+        random.shuffle(input_filenames)
+        if counter+batch_size >= len(input_filenames):
+            counter = 0
+
+        for i in range(batch_size):
+            img = input_filenames[counter + i]
+            #print(img)
+            small_img = Image.open(img)
+            small_images[i] = np.array(small_img) / 255.0
+            large_image = Image.open(img.replace("-in.jpg", "-out.jpg"))
+            large_images[i] = np.array(large_image) / 255.0
+        yield (small_images, large_images)
+        counter += batch_size
 
 def perceptual_distance(y_true, y_pred):
     """Calculate perceptual distance, DO NOT ALTER"""
@@ -219,7 +244,7 @@ if 1:
     model.compile(optimizer='adam', loss='mae',
                   metrics=[perceptual_distance, psnr, psnr_v2])
 
-    model.fit_generator(image_generator(config.batch_size, train_dir),
+    model.fit_generator(train_image_generator(config.batch_size, train_dir),
                         steps_per_epoch=config.steps_per_epoch,
                         epochs=config.num_epochs, callbacks=[
                             ImageLogger(), WandbCallback()],
