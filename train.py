@@ -15,7 +15,7 @@ configProt.allow_soft_placement = True
 from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras import layers
 from tensorflow.keras import backend as K
-from tensorflow.keras.callbacks import Callback
+from tensorflow.keras.callbacks import Callback, LearningRateScheduler
 from tensorflow.keras.regularizers import l2
 import wandb
 from wandb.keras import WandbCallback
@@ -23,7 +23,7 @@ from wandb.keras import WandbCallback
 run = wandb.init(project='superres')
 config = run.config
 
-config.num_epochs = 2000
+config.num_epochs = 1000
 config.batch_size = 32
 config.input_height = 32
 config.input_width = 32
@@ -141,6 +141,12 @@ class ImageLogger(Callback):
         }, commit=False)
 
 
+def lr_step_decay(epoch, ):
+    init_lr = 0.001
+    drop_per_step = 0.5
+    epochs_per_drop = 20
+    return init_lr * np.power(drop_per_step, np.floor(epoch//epochs_per_drop))
+
 
 if 0:
     model = Sequential()
@@ -166,7 +172,10 @@ print(model.summary())
 #for l in model.layers:
     #print(type(l))
 if 1:
-    opt = tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
+    lr = 0.001
+    opt = tf.keras.optimizers.Adam(lr=lr,decay=0.9)
+
+    lrate = LearningRateScheduler(lr_step_decay)
 
     # DONT ALTER metrics=[perceptual_distance]
     model.compile(optimizer='adam', loss='mae',
@@ -175,6 +184,6 @@ if 1:
     model.fit_generator(image_generator(config.batch_size, train_dir),
                         steps_per_epoch=config.steps_per_epoch,
                         epochs=config.num_epochs, callbacks=[
-                            ImageLogger(), WandbCallback()],
+                            ImageLogger(), WandbCallback(),lrate],
                         validation_steps=config.val_steps_per_epoch,
                         validation_data=val_generator)
