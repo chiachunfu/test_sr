@@ -169,7 +169,7 @@ if 1:
     opt = tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
 
     # DONT ALTER metrics=[perceptual_distance]
-    model.compile(optimizer='adam', loss='mse',
+    model.compile(optimizer='adam', loss='mae',
                   metrics=[perceptual_distance, psnr, psnr_v2])
 
     model.fit_generator(image_generator(config.batch_size, train_dir),
