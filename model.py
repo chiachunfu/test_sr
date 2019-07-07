@@ -2,7 +2,8 @@
 from tensorflow.keras.layers import Conv2D, BatchNormalization, Activation, Input, add, Lambda
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.models import Sequential, Model
-from layers import resnet_layer, SubpixelConv2D, Conv2DWeightNorm, attention_layer
+from layers import resnet_layer, SubpixelConv2D, Conv2DWeightNorm, attention_layer, BicubicUpscale
+from tensorflow.keras import backend as K
 
 def sr_resnet(input_shape,scale_ratio):
     #inputs = Input(shape=input_shape)
@@ -64,23 +65,25 @@ def sr_resnet(input_shape,scale_ratio):
                          kernel_regularizer=l2(reg_scale)
                          )(x)
 
-
-
-    #res_out2 = layers.add([res_in2, x])
-
-    pixelshuf_skip_in = Conv2DWeightNorm(num_filters_out,
-                               kernel_size=3,
-                               strides=1,
-                               padding='same',
-                               kernel_initializer='he_normal',
-                               kernel_regularizer=l2(reg_scale)
-                               )(inputs)
     up_samp = SubpixelConv2D([None, input_shape[0], input_shape[1], num_filters_out],
                              scale=scale_ratio
                              )(pixelshuf_in)
-    up_samp_skip = SubpixelConv2D([None, input_shape[0], input_shape[1], num_filters_out],
-                             scale=scale_ratio
-                                  )(pixelshuf_skip_in)
+
+    #res_out2 = layers.add([res_in2, x])
+    if 0:
+        pixelshuf_skip_in = Conv2DWeightNorm(num_filters_out,
+                                   kernel_size=3,
+                                   strides=1,
+                                   padding='same',
+                                   kernel_initializer='he_normal',
+                                   kernel_regularizer=l2(reg_scale)
+                                   )(inputs)
+
+        up_samp_skip = SubpixelConv2D([None, input_shape[0], input_shape[1], num_filters_out],
+                                 scale=scale_ratio
+                                      )(pixelshuf_skip_in)
+
+    up_samp_skip = BicubicUpscale()(inputs)
     outputs = add([up_samp, up_samp_skip])
 
     # Instantiate model.
