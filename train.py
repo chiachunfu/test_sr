@@ -163,13 +163,27 @@ model = sr_resnet(input_shape=(config.input_width, config.input_height, 3),scale
 
 
 print(model.summary())
+
+
+# Define custom loss
+def custom_loss():
+    # Create a loss function that adds the MSE loss to the mean of all squared activations of a specific layer
+    def loss(y_true, y_pred):
+        r_del = K.sqrt(y_pred[:,:,:,0] - y_true[:,:,:,0])
+        g_del = K.sqrt(y_pred[:,:,:,1] - y_true[:,:,:,1]) * 2.0
+        b_del = K.sqrt(y_pred[:,:,:,2] - y_true[:,:,:,2])
+        #return K.mean(K.square(y_pred - y_true) + K.square(layer), axis=-1)
+        return K.mean(r_del+g_del+b_del)
+
+    # Return a function
+    return loss
 #for l in model.layers:
     #print(type(l))
 if 1:
     opt = tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
 
     # DONT ALTER metrics=[perceptual_distance]
-    model.compile(optimizer='adam', loss='mae',
+    model.compile(optimizer='adam', loss=custom_loss(),
                   metrics=[perceptual_distance, psnr, psnr_v2])
 
     model.fit_generator(image_generator(config.batch_size, train_dir),
