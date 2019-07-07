@@ -7,9 +7,6 @@ import numpy as np
 import tensorflow as tf
 from model import sr_resnet
 import re
-import tarfile
-from urllib.request import urlretrieve
-import shutil
 
 configProt = tf.ConfigProto()
 configProt.gpu_options.allow_growth = True
@@ -18,7 +15,7 @@ configProt.allow_soft_placement = True
 from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras import layers
 from tensorflow.keras import backend as K
-from tensorflow.keras.callbacks import Callback, LearningRateScheduler
+from tensorflow.keras.callbacks import Callback
 from tensorflow.keras.regularizers import l2
 import wandb
 from wandb.keras import WandbCallback
@@ -42,40 +39,6 @@ if not os.path.exists("data"):
     subprocess.check_output(
         "mkdir data && curl https://storage.googleapis.com/wandb/flower-enhance.tar.gz | tar xz -C data", shell=True)
 
-def download_flowers_data():
-    dataset_folder = os.path.dirname(os.path.abspath(__file__))
-    if not os.path.exists(os.path.join(dataset_folder, "jpg")):
-        print('Downloading data from http://www.robots.ox.ac.uk/~vgg/data/flowers/102/ ...')
-        tar_filename = os.path.join(dataset_folder, "102flowers.tgz")
-        label_filename = os.path.join(dataset_folder, "imagelabels.mat")
-        set_filename = os.path.join(dataset_folder, "setid.mat")
-        if not os.path.exists(tar_filename):
-            urlretrieve("http://www.robots.ox.ac.uk/~vgg/data/flowers/102/102flowers.tgz", tar_filename)
-        if not os.path.exists(label_filename):
-            urlretrieve("http://www.robots.ox.ac.uk/~vgg/data/flowers/102/imagelabels.mat", label_filename)
-        if not os.path.exists(set_filename):
-            urlretrieve("http://www.robots.ox.ac.uk/~vgg/data/flowers/102/setid.mat", set_filename)
-
-        print('Extracting ' + tar_filename + '...')
-        tarfile.open(tar_filename).extractall(path=dataset_folder)
-
-        print('Copying map files ...')
-        shutil.copytree('./data/train','./data/train_new')
-        # get image paths and 0-based image labels
-        image_paths = np.array(sorted(glob.glob(dataset_folder + '/jpg/*.jpg')))
-        for f in image_paths:
-            f_arr = f.split('/')
-            new_filename = f_arr[-1]
-            img = Image.open(f)
-            img_lr = img.resize((32,32), Image.BICUBIC)
-            img_hr = img.resize((256,256), Image.BICUBIC)
-            img_lr.save('./data/train_new/' + new_filename.replace('.jpg', '-in.jpg'))
-            img_hr.save('./data/train_new/' + new_filename.replace('.jpg', '-out.jpg'))
-        os.remove(tar_filename)
-        #os.remove(os.path.join(dataset_folder, "jpg"))
-
-#download_flowers_data()
-
 config.steps_per_epoch = len(
     glob.glob(train_dir + "/*-in.jpg")) // config.batch_size
 config.val_steps_per_epoch = len(
@@ -93,7 +56,7 @@ def image_transform(img, type):
         img = img.rotate(90 * type)
     return img
 
-def train_image_generator(batch_size, img_dir):
+def image_generator(batch_size, img_dir):
     """A generator that returns small images and large images.  DO NOT ALTER the validation set"""
     input_filenames = glob.glob(img_dir + "/*-in.jpg")
     counter = 0
@@ -144,31 +107,6 @@ def train_image_generator(batch_size, img_dir):
         counter += batch_size
 
 
-def image_generator(batch_size, img_dir):
-    """A generator that returns small images and large images.  DO NOT ALTER the validation set"""
-    input_filenames = glob.glob(img_dir + "/*-in.jpg")
-    counter = 0
-    while True:
-        small_images = np.zeros(
-            (batch_size, config.input_width, config.input_height, 3))
-        large_images = np.zeros(
-            (batch_size, config.output_width, config.output_height, 3))
-        large_images = np.zeros(
-            (batch_size, config.input_width*scale, config.input_height*scale, 3))
-        random.shuffle(input_filenames)
-        if counter+batch_size >= len(input_filenames):
-            counter = 0
-
-        for i in range(batch_size):
-            img = input_filenames[counter + i]
-            #print(img)
-            small_img = Image.open(img)
-            small_images[i] = np.array(small_img) / 255.0
-            large_image = Image.open(img.replace("-in.jpg", "-out.jpg"))
-            large_images[i] = np.array(large_image) / 255.0
-        yield (small_images, large_images)
-        counter += batch_size
-
 def perceptual_distance(y_true, y_pred):
     """Calculate perceptual distance, DO NOT ALTER"""
     y_true *= 255
@@ -187,7 +125,8 @@ def psnr(y_true, y_pred):
 def psnr_v2(y_true, y_pred):
     max_pixel = 1.0
     return (10.0 * K.log((max_pixel ** 2) / (K.mean(K.square(y_pred - y_true), axis=-1)))) / 2.303
-
+val_generator = image_generator(config.batch_size, val_dir)
+in_sample_images, out_sample_images = next(val_generator)
 
 
 class ImageLogger(Callback):
@@ -201,12 +140,6 @@ class ImageLogger(Callback):
             "examples": [wandb.Image(np.concatenate([in_resized[i] * 255, o * 255, out_sample_images[i] * 255], axis=1)) for i, o in enumerate(preds)]
         }, commit=False)
 
-
-def lr_step_decay(epoch, ):
-    init_lr = 0.001
-    drop_per_step = 0.5
-    epochs_per_drop = 20
-    return init_lr * np.power(drop_per_step, np.floor(epoch//epochs_per_drop))
 
 
 if 0:
@@ -228,23 +161,18 @@ if 0:
 
 model = sr_resnet(input_shape=(config.input_width, config.input_height, 3),scale_ratio=scale)
 
-val_generator = image_generator(config.batch_size, val_dir)
-in_sample_images, out_sample_images = next(val_generator)
 
 print(model.summary())
 #for l in model.layers:
     #print(type(l))
 if 1:
-    lr = 0.001
-    opt = tf.keras.optimizers.Adam(lr=lr,decay=0.9)
-
-    lrate = LearningRateScheduler(lr_step_decay)
+    opt = tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
 
     # DONT ALTER metrics=[perceptual_distance]
     model.compile(optimizer='adam', loss='mae',
                   metrics=[perceptual_distance, psnr, psnr_v2])
 
-    model.fit_generator(train_image_generator(config.batch_size, train_dir),
+    model.fit_generator(image_generator(config.batch_size, train_dir),
                         steps_per_epoch=config.steps_per_epoch,
                         epochs=config.num_epochs, callbacks=[
                             ImageLogger(), WandbCallback()],

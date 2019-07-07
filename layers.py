@@ -58,11 +58,9 @@ def resnet_layer(inputs,
                  batch_normalization=False,
                  weight_normalization=False,
                  kernel_initializer='he_normal',
-                 res_scale=0,
                  reg_scale=0
                  ):
     """2D Convolution-Batch Normalization-Activation stack builder
-
     # Arguments
         inputs (tensor): input tensor from input image or previous layer
         num_filters (int): Conv2D number of filters, input/output have same number of filters
@@ -72,7 +70,6 @@ def resnet_layer(inputs,
         batch_normalization (bool): whether to include batch normalization
         conv_first (bool): conv-bn-activation (True) or
             bn-activation-conv (False)
-
     # Returns
         x (tensor): tensor as input to the next layer
     """
@@ -142,8 +139,7 @@ def resnet_layer(inputs,
             x = Activation(activation)(x)
         x = conv2(x)
         x = conv_bot_out(x)
-    if res_scale >= 0:
-        x = Lambda(lambda x: x * res_scale)(x)
+
     x = add([inputs, x])
 
     return x
@@ -175,4 +171,3 @@ def attention_layer(input, reduction_ratio):
     x = multiply([input, up_scale])
 
     return input
-

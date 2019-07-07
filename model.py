@@ -28,18 +28,11 @@ def sr_resnet(input_shape,scale_ratio):
                          )
         return x
 
-    def res_scaling_blocks(res_in, num_chans):
-        x = resnet_layer(inputs=res_in,
-                         num_filters=num_chans,
-                         res_scale=0.2
-                         )
-        return x
-
     def res_chan_attention_blocks(res_in, num_chans, reduction_ratio):
         x = resnet_layer(inputs=res_in,
-                         num_filters=num_chans,
+                         num_filters=num_chans
                          )
-        x = attention_layer(x, reduction_ratio)
+        x = attention_layer(x, 4)
         return x
 
     for l in range(num_res_layer):
@@ -49,18 +42,18 @@ def sr_resnet(input_shape,scale_ratio):
 
     #print(type(x))
     num_filters2 = 256
-    if 1:
-        x = Conv2DWeightNorm(256,
-                             kernel_size=1,
-                             strides=1,
-                             padding='same',
-                             kernel_initializer='he_normal',
-                             kernel_regularizer=l2(reg_scale)
-                             )(x)
-        for l in range(4):
 
-            #x = res_blocks(x,num_filters)
-            x = res_chan_attention_blocks(x,num_filters2,4)
+    x = Conv2DWeightNorm(256,
+                         kernel_size=1,
+                         strides=1,
+                         padding='same',
+                         kernel_initializer='he_normal',
+                         kernel_regularizer=l2(reg_scale)
+                         )(x)
+    for l in range(4):
+
+        #x = res_blocks(x,num_filters)
+        x = res_chan_attention_blocks(x,num_filters2,16)
 
 
     pixelshuf_in = Conv2DWeightNorm(num_filters_out,
@@ -93,6 +86,5 @@ def sr_resnet(input_shape,scale_ratio):
     # Instantiate model.
     model = Model(inputs=inputs, outputs=outputs)
     return model
-
 
 
