@@ -185,8 +185,8 @@ if 0:
     model.add(layers.UpSampling2D())
     model.add(layers.Conv2D(3, (3, 3), activation='relu', padding='same'))
 
-#model = sr_resnet(input_shape=(config.input_width, config.input_height, 3),scale_ratio=scale)
-model = sr_prosr_rcan(input_shape=(config.input_width, config.input_height, 3),scale_ratio=scale)
+model = sr_resnet(input_shape=(config.input_width, config.input_height, 3),scale_ratio=scale)
+#model = sr_prosr_rcan(input_shape=(config.input_width, config.input_height, 3),scale_ratio=scale)
 
 
 print(model.summary())

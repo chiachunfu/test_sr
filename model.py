@@ -51,7 +51,7 @@ def sr_resnet(input_shape,scale_ratio):
                          kernel_initializer='he_normal',
                          kernel_regularizer=l2(reg_scale)
                          )(x)
-    for l in range(4):
+    for l in range(0):
 
         #x = res_blocks(x,num_filters)
         x = res_chan_attention_blocks(x,num_filters2,16)
@@ -70,7 +70,7 @@ def sr_resnet(input_shape,scale_ratio):
                              )(pixelshuf_in)
 
     #res_out2 = layers.add([res_in2, x])
-    if 1:
+    if 0:
         pixelshuf_skip_in = Conv2DWeightNorm(num_filters_out,
                                    kernel_size=3,
                                    strides=1,
@@ -83,8 +83,12 @@ def sr_resnet(input_shape,scale_ratio):
                                  scale=scale_ratio
                                       )(pixelshuf_skip_in)
     else:
-        up_samp_skip = BicubicUpscale()(inputs)
+        up_samp_skip = BicubicUpscale(8)(inputs)
+    res_scale = 0.2
+    if res_scale >= 0:
+        up_samp = Lambda(lambda x: x * res_scale)(up_samp)
     outputs = add([up_samp, up_samp_skip])
+    #outputs = up_samp_skip
 
     # Instantiate model.
     model = Model(inputs=inputs, outputs=outputs)
