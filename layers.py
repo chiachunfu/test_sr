@@ -49,7 +49,7 @@ def SubpixelConv2D(input_shape, scale=8):
 
 
 
-def BicubicUpscale():
+def BicubicUpscale(scale):
     """
     Keras layer to do subpixel convolution.
     NOTE: Tensorflow backend only. Uses tf.depth_to_space
@@ -64,7 +64,9 @@ def BicubicUpscale():
 
 
     def bicubic(input_img):
-        return tf.image.resize_bicubic(input_img, [256, 256])
+        w = input_img.get_shape()[1]
+        h = input_img.get_shape()[2]
+        return tf.image.resize_bicubic(input_img, [w*scale, h*scale])
 
         #return tf.image.resize_bicubic(x, output_shape)
 

@@ -70,7 +70,7 @@ def sr_resnet(input_shape,scale_ratio):
                              )(pixelshuf_in)
 
     #res_out2 = layers.add([res_in2, x])
-    if 0:
+    if 1:
         pixelshuf_skip_in = Conv2DWeightNorm(num_filters_out,
                                    kernel_size=3,
                                    strides=1,
@@ -82,9 +82,69 @@ def sr_resnet(input_shape,scale_ratio):
         up_samp_skip = SubpixelConv2D([None, input_shape[0], input_shape[1], num_filters_out],
                                  scale=scale_ratio
                                       )(pixelshuf_skip_in)
-
-    up_samp_skip = BicubicUpscale()(inputs)
+    else:
+        up_samp_skip = BicubicUpscale()(inputs)
     outputs = add([up_samp, up_samp_skip])
+
+    # Instantiate model.
+    model = Model(inputs=inputs, outputs=outputs)
+    return model
+
+
+def sr_prosr_rcan(input_shape,scale_ratio):
+    #inputs = Input(shape=input_shape)
+    # v2 performs Conv2D with BN-ReLU on input before splitting into 2 paths
+    num_filters = 64
+    reg_scale = 0
+    scale_ratio = 2
+    #num_filters_out = max(64, 3 * scale_ratio**2)
+    num_filters_out = 3 * 2**2
+    inputs = Input(shape=input_shape)
+    x_in = inputs
+    for i in range(3):
+        x = Conv2DWeightNorm(num_filters,
+                   kernel_size=3,
+                   strides=1,
+                   padding='same',
+                   kernel_initializer='he_normal',
+                   kernel_regularizer=l2(reg_scale)
+                   )(x_in)
+        num_res_layer = 8
+
+        def res_blocks(res_in, num_chans):
+            x = resnet_layer(inputs=res_in,
+                             num_filters=num_chans
+                             )
+            return x
+
+        def res_chan_attention_blocks(res_in, num_chans, reduction_ratio):
+            x = resnet_layer(inputs=res_in,
+                             num_filters=num_chans
+                             )
+            x = attention_layer(x, 4)
+            return x
+
+        for l in range(num_res_layer):
+
+            #x = res_blocks(x,num_filters)
+            x = res_chan_attention_blocks(x,num_filters,4)
+
+        pixelshuf_in = Conv2DWeightNorm(num_filters_out,
+                                        kernel_size=3,
+                                        strides=1,
+                                        padding='same',
+                                        kernel_initializer='he_normal',
+                                        kernel_regularizer=l2(reg_scale)
+                                        )(x)
+        up_samp = SubpixelConv2D([None, pixelshuf_in.get_shape()[1], pixelshuf_in.get_shape()[2], num_filters_out],
+                                 scale=scale_ratio
+                                 )(pixelshuf_in)
+        #print(up_samp.get_shape())
+        up_samp_skip = BicubicUpscale(2**(i+1))(inputs)
+
+        x_in = add([up_samp, up_samp_skip])
+
+    outputs = x_in
 
     # Instantiate model.
     model = Model(inputs=inputs, outputs=outputs)
