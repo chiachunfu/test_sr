@@ -154,8 +154,8 @@ class DataGenerator():
 
             large_images[i] = np.array(large_image) / 255.0
         print(self.counter)
-        yield (small_images, large_images)
         self.counter += batch_size
+        yield (small_images, large_images)
         #return (small_images, large_images)
 
 
