@@ -292,6 +292,6 @@ else:
         dis_loss = 0.5 * np.add(real_img_loss,fake_img_loss)
 
         gen_loss = gan.train_on_batch(input_imgs,[np.ones(config.batch_size), output_imgs])
-        if itr+1 % 10 == 0:
+        if (itr+1) % 10 == 0:
             print(itr, dis_loss, gen_loss)
 
