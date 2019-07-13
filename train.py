@@ -5,7 +5,7 @@ import os
 from PIL import Image
 import numpy as np
 import tensorflow as tf
-from model import sr_resnet, sr_prosr_rcan
+from model import sr_resnet, sr_prosr_rcan,sr_discriminator, sr_gan_test
 import re
 
 configProt = tf.ConfigProto()
@@ -105,6 +105,60 @@ def train_image_generator(batch_size, img_dir):
             large_images[i] = np.array(large_image) / 255.0
         yield (small_images, large_images)
         counter += batch_size
+
+
+class DataGenerator():
+    def __init__(self, img_dir, is_train=False):
+        self.input_filenames = glob.glob(img_dir + "/*-in.jpg")
+        #print(len(self.input_filenames), img_dir)
+        self.counter = 0
+        self.total_file_cnt = len(self.input_filenames)
+        self.is_train = is_train
+        if self.is_train:
+            random.shuffle(self.input_filenames)
+    def batch_gen(self, batch_size):
+
+        small_images = np.zeros(
+            (batch_size, config.input_width, config.input_height, 3))
+        large_images = np.zeros(
+            (batch_size, config.output_width, config.output_height, 3))
+        large_images = np.zeros(
+            (batch_size, config.input_width * scale, config.input_height * scale, 3))
+        #random.shuffle(input_filenames)
+        if self.counter + batch_size >= self.total_file_cnt:
+            self.counter = 0
+            if self.is_train:
+                print("reset")
+                random.shuffle(self.input_filenames)
+        #print(len(self.input_filenames))
+        for i in range(batch_size):
+            ttype = random.randint(0, 5) #augment option
+            #print(self.counter)
+            img = self.input_filenames[self.counter + i]
+            #print(img)
+            small_img = Image.open(img)
+            if self.is_train:
+                small_img = image_transform(small_img, ttype)
+            small_images[i] = np.array(small_img) / 255.0
+            img = Image.open(img.replace("-in.jpg", "-out.jpg"))
+            if 1:
+                if 'P' in img.mode:  # check if image is a palette type
+                    img = img.convert("RGB")  # convert it to RGB
+                    img = img.resize((config.input_width*scale, config.input_height*scale), Image.ANTIALIAS)  # resize it
+                    large_image = img.convert("P", dither=Image.NONE, palette=Image.ADAPTIVE)
+                    # convert back to palette
+                else:
+                    large_image = img.resize((config.input_width*scale, config.input_height*scale), Image.ANTIALIAS)  # regular resize
+            if self.is_train:
+                large_image = image_transform(large_image, ttype)
+
+            large_images[i] = np.array(large_image) / 255.0
+        yield (small_images, large_images)
+        self.counter += batch_size
+        print(self.counter)
+        #return (small_images, large_images)
+
+
 def image_generator(batch_size, img_dir):
     """A generator that returns small images and large images.  DO NOT ALTER the validation set"""
     input_filenames = glob.glob(img_dir + "/*-in.jpg")
@@ -151,8 +205,7 @@ def psnr(y_true, y_pred):
 def psnr_v2(y_true, y_pred):
     max_pixel = 1.0
     return (10.0 * K.log((max_pixel ** 2) / (K.mean(K.square(y_pred - y_true), axis=-1)))) / 2.303
-val_generator = image_generator(config.batch_size, val_dir)
-in_sample_images, out_sample_images = next(val_generator)
+
 
 
 class ImageLogger(Callback):
@@ -168,28 +221,11 @@ class ImageLogger(Callback):
 
 
 
-if 0:
-    model = Sequential()
 
-    model.add(layers.Conv2D(64, (3, 3), activation='relu', padding='same',
-                            input_shape=(config.input_width, config.input_height, 3)))
-    #model.add(layers.Conv2D(32, (3, 3), padding='same',
-    #                        input_shape=(config.input_width, config.input_height, 32)))\
-
-    #model.add(SubpixelConv2D([None, config.input_width, config.input_height,32],scale=2))
-    model.add(layers.UpSampling2D())
-
-    model.add(layers.Conv2D(64, (3, 3), activation='relu', padding='same'))
-    model.add(layers.UpSampling2D())
-    model.add(layers.Conv2D(64, (3, 3), activation='relu', padding='same'))
-    model.add(layers.UpSampling2D())
-    model.add(layers.Conv2D(3, (3, 3), activation='relu', padding='same'))
-
-model = sr_resnet(input_shape=(config.input_width, config.input_height, 3),scale_ratio=scale)
 #model = sr_prosr_rcan(input_shape=(config.input_width, config.input_height, 3),scale_ratio=scale)
 
 
-print(model.summary())
+#print(model.summary())
 
 
 # Define custom loss
@@ -206,12 +242,19 @@ def custom_loss():
     return loss
 #for l in model.layers:
     #print(type(l))
-if 1:
+if 0:
+    model = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
+
     opt = tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
 
     # DONT ALTER metrics=[perceptual_distance]
     model.compile(optimizer='adam', loss=custom_loss(),
                   metrics=[perceptual_distance, psnr, psnr_v2])
+
+    val_generator = image_generator(config.batch_size, val_dir)
+    in_sample_images, out_sample_images = next(val_generator)
+
+
 
     model.fit_generator(train_image_generator(config.batch_size, train_dir),
                         steps_per_epoch=config.steps_per_epoch,
@@ -219,3 +262,36 @@ if 1:
                             ImageLogger(), WandbCallback()],
                         validation_steps=config.val_steps_per_epoch,
                         validation_data=val_generator)
+
+else:
+    generator = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
+
+    discriminator = sr_discriminator(input_shape=(config.output_width, config.output_height, 3))
+
+    gan = sr_gan_test((config.input_width, config.input_height, 3), generator, discriminator)
+
+    generator.compile(optimizer='adam', loss='mae')
+
+    discriminator.compile(optimizer='adam', loss='binary_crossentropy')
+
+    gan.compile(
+        loss=['binary_crossentropy', custom_loss()],
+        loss_weights=[1, 1],
+        optimizer=tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
+    )
+    #print(gan.summary())
+    #print(discriminator.summary())
+    train_generator = DataGenerator(train_dir,is_train=True)
+    val_generator = DataGenerator(val_dir,is_train=False)
+
+    for itr in range(config.num_epochs * config.steps_per_epoch):
+        input_imgs, output_imgs = next(train_generator.batch_gen(config.batch_size))
+        gen_imgs = generator.predict(input_imgs)
+        real_img_loss = discriminator.train_on_batch(output_imgs, np.ones(config.batch_size))
+        fake_img_loss = discriminator.train_on_batch(gen_imgs, np.zeros(config.batch_size))
+        dis_loss = 0.5 * np.add(real_img_loss,fake_img_loss)
+
+        gen_loss = gan.train_on_batch(input_imgs,[np.ones(config.batch_size), output_imgs])
+        if itr+1 % 10 == 0:
+            print(itr, dis_loss, gen_loss)
+

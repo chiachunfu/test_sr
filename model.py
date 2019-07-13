@@ -1,5 +1,5 @@
 
-from tensorflow.keras.layers import Conv2D, BatchNormalization, Activation, Input, add, Lambda
+from tensorflow.keras.layers import Conv2D, BatchNormalization, Activation, Input, add, Lambda, Dense, Flatten
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.models import Sequential, Model
 from layers import resnet_layer, SubpixelConv2D, Conv2DWeightNorm, attention_layer, BicubicUpscale
@@ -154,4 +154,34 @@ def sr_prosr_rcan(input_shape,scale_ratio):
     model = Model(inputs=inputs, outputs=outputs)
     return model
 
+def sr_discriminator(input_shape, num_filters=32):
+    inputs = Input(shape=input_shape)
+    filter_scale = [1, 2, 4, 8]
+    x = inputs
+    for ratio in filter_scale:
+        x = Conv2D(num_filters * ratio,
+                   kernel_size=3,
+                   strides=2,
+                   padding='same',
+                   kernel_initializer='he_normal')(x)
+        x = BatchNormalization()(x)
+        x = Activation('relu')(x)
+    x = Dense(num_filters * 16, activation='relu')(x)
+    x = Flatten()(x)
+    outputs = Dense(1, activation='sigmoid')(x)
 
+    # Instantiate model.
+    model = Model(inputs=inputs, outputs=outputs)
+    return model
+
+def sr_gan_test(input_shape, gen_model, dis_model):
+    inputs = Input(shape=input_shape)
+    gen_out = gen_model(inputs)
+
+    dis_model.trainable=False
+
+    dis_out = dis_model(gen_out)
+
+    # Instantiate model.
+    model = Model(inputs=inputs, outputs=[dis_out, gen_out])
+    return model
