@@ -156,7 +156,7 @@ def sr_prosr_rcan(input_shape,scale_ratio):
 
 def sr_discriminator(input_shape, num_filters=32):
     inputs = Input(shape=input_shape)
-    filter_scale = [1, 2, 4, 8, 8]
+    filter_scale = [1, 2, 4, 8, 4]
     x = inputs
     for ratio in filter_scale:
         x = Conv2D(num_filters * ratio,

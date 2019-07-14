@@ -294,14 +294,14 @@ else:
     generator.compile(optimizer='adam', loss='mae', metrics=[perceptual_distance, psnr, psnr_v2])
 
     discriminator = sr_discriminator(input_shape=(config.output_width, config.output_height, 3))
-    discriminator.compile(optimizer=tf.keras.optimizers.Adam(lr=0.0001,decay=0.9)
+    discriminator.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
                           , loss='binary_crossentropy')
 
     gan = sr_gan_test((config.input_width, config.input_height, 3), generator, discriminator)
     gan.compile(
         loss=['binary_crossentropy', custom_loss()],
         loss_weights=[1e-1, 1],
-        optimizer=tf.keras.optimizers.Adam(lr=0.0001,decay=0.9)
+        optimizer=tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
     )
 
     #print(gan.summary())
@@ -330,9 +330,16 @@ else:
             all_gen_mae_loss.append(gen_loss[2])
             all_gen_dis_loss.append(gen_loss[1])
             if (itr+1) % 32 == 0:
-                print(itr, np.mean(np.array(all_dis_loss)), np.mean(np.array(all_gen_loss)), np.mean(np.array(all_gen_mae_loss)), np.mean(np.array(all_gen_dis_loss)))
 
-            if (itr+1) % 1000 == 0:
+                print(itr, np.mean(np.array(all_dis_loss)), np.mean(np.array(all_gen_loss)), np.mean(np.array(all_gen_mae_loss)), np.mean(np.array(all_gen_dis_loss)))
+                all_dis_loss = []
+                all_gen_loss = []
+                all_gen_mae_loss = []
+                all_gen_dis_loss = []
+
+            if (itr+1) % 512 == 0:
+                results = generator.evaluate(input_imgs, output_imgs, config.batch_size)
+
                 #print("train performance", generator.evaluate(all_train_input_imgs, all_train_output_imgs, config.batch_size))
                 results = generator.evaluate(all_val_input_imgs, all_val_output_imgs, config.batch_size)
                 print("val performance", results)
