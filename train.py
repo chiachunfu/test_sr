@@ -294,13 +294,14 @@ else:
     generator.compile(optimizer='adam', loss='mae', metrics=[perceptual_distance, psnr, psnr_v2])
 
     discriminator = sr_discriminator(input_shape=(config.output_width, config.output_height, 3))
-    discriminator.compile(optimizer='adam', loss='binary_crossentropy')
+    discriminator.compile(optimizer=tf.keras.optimizers.Adam(lr=0.0001,decay=0.9)
+                          , loss='binary_crossentropy')
 
     gan = sr_gan_test((config.input_width, config.input_height, 3), generator, discriminator)
     gan.compile(
         loss=['binary_crossentropy', custom_loss()],
-        loss_weights=[1, 1],
-        optimizer=tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
+        loss_weights=[1e-1, 1],
+        optimizer=tf.keras.optimizers.Adam(lr=0.0001,decay=0.9)
     )
 
     #print(gan.summary())
