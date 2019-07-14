@@ -331,8 +331,10 @@ else:
 
         if (itr+1) % config.steps_per_epoch == 0:
             #print("train performance", generator.evaluate(all_train_input_imgs, all_train_output_imgs, config.batch_size))
-            print("val performance", generator.evaluate(all_val_input_imgs, all_val_output_imgs, config.batch_size))
+            results = generator.evaluate(all_val_input_imgs, all_val_output_imgs, config.batch_size)
+            print("val performance", results)
             LogImage(generator, in_sample_images, out_sample_images)
+            wandb.log(results)
             if (itr + 1) % (3 * config.steps_per_epoch) == 0:
                 """Save the generator and discriminator networks"""
                 generator.save_weights("generator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
