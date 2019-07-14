@@ -331,7 +331,7 @@ else:
 
         if (itr+1) % config.steps_per_epoch == 0:
             #print("train performance", generator.evaluate(all_train_input_imgs, all_train_output_imgs, config.batch_size))
-            results = generator.evaluate(all_val_input_imgs, all_val_output_imgs, config.batch_size,callbacks=WandbCallback())
+            results = generator.evaluate(all_val_input_imgs, all_val_output_imgs, config.batch_size)
             print("val performance", results)
             LogImage(generator, in_sample_images, out_sample_images)
             #wandb.log(results)
