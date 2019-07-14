@@ -1,5 +1,5 @@
 
-from tensorflow.keras.layers import Conv2D, BatchNormalization, Activation, Input, add, Lambda, Dense, Flatten
+from tensorflow.keras.layers import Conv2D, BatchNormalization, Activation, Input, add, Lambda, Dense, Flatten, LeakyReLU
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.models import Sequential, Model
 from layers import resnet_layer, SubpixelConv2D, Conv2DWeightNorm, attention_layer, BicubicUpscale
@@ -156,7 +156,7 @@ def sr_prosr_rcan(input_shape,scale_ratio):
 
 def sr_discriminator(input_shape, num_filters=32):
     inputs = Input(shape=input_shape)
-    filter_scale = [1, 2, 4, 8]
+    filter_scale = [1, 2, 4, 8, 8]
     x = inputs
     for ratio in filter_scale:
         x = Conv2D(num_filters * ratio,
@@ -165,8 +165,9 @@ def sr_discriminator(input_shape, num_filters=32):
                    padding='same',
                    kernel_initializer='he_normal')(x)
         x = BatchNormalization()(x)
+        x = LeakyReLU(alpha=0.01)(x)
     x = Dense(num_filters)(x)
-    x = Activation('relu')(x)
+    x = LeakyReLU(alpha=0.01)(x)
     x = Flatten()(x)
     x = Dense(1)(x)
     outputs = Activation('sigmoid')(x)

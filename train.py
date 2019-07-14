@@ -136,11 +136,11 @@ class DataGenerator():
         large_images = np.zeros(
             (batch_size, config.input_width * scale, config.input_height * scale, 3))
         #random.shuffle(input_filenames)
-        if self.counter + batch_size >= self.total_file_cnt:
-            self.counter = 0
-            if self.is_train:
-                print("reset")
-                random.shuffle(self.input_filenames)
+        #if self.counter + batch_size >= self.total_file_cnt:
+        #    self.counter = 0
+        #    if self.is_train:
+        #        print("reset")
+        random.shuffle(self.input_filenames)
         #print(len(self.input_filenames))
         for i in range(batch_size):
             ttype = random.randint(0, 5) #augment option
@@ -165,7 +165,7 @@ class DataGenerator():
 
             large_images[i] = np.array(large_image) / 255.0
         #print(self.counter)
-        self.counter += batch_size
+        #self.counter += batch_size
         yield (small_images, large_images)
         #return (small_images, large_images)
 
@@ -322,6 +322,7 @@ else:
         #print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss)
         #discriminator.trainable = False
         if 1 :
+            input_imgs, output_imgs = next(train_generator.batch_gen(config.batch_size))
             gen_loss = gan.train_on_batch(input_imgs,[np.ones(config.batch_size), output_imgs])
             #print("gan loss: ", gen_loss)
             all_dis_loss.append(dis_loss)
@@ -331,14 +332,14 @@ else:
             if (itr+1) % 32 == 0:
                 print(itr, np.mean(np.array(all_dis_loss)), np.mean(np.array(all_gen_loss)), np.mean(np.array(all_gen_mae_loss)), np.mean(np.array(all_gen_dis_loss)))
 
-            if (itr+1) % config.steps_per_epoch == 0:
+            if (itr+1) % 1000 == 0:
                 #print("train performance", generator.evaluate(all_train_input_imgs, all_train_output_imgs, config.batch_size))
                 results = generator.evaluate(all_val_input_imgs, all_val_output_imgs, config.batch_size)
                 print("val performance", results)
                 LogImage(generator, in_sample_images, out_sample_images)
                 #wandb.log(results)
-                if (itr + 1) % (3 * config.steps_per_epoch) == 0:
+                if (itr + 1) % (3 * 1000) == 0:
                     """Save the generator and discriminator networks"""
-                    generator.save_weights("generator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
-                    discriminator.save_weights("discriminator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
+                    generator.save_weights("new_generator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
+                    discriminator.save_weights("new_discriminator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
 
