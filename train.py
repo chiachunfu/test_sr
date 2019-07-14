@@ -56,6 +56,17 @@ def image_transform(img, type):
         img = img.rotate(90 * type)
     return img
 
+def get_all_imgs(img_dir):
+    input_filenames = glob.glob(img_dir + "/*-in.jpg")
+    small_images = np.zeros(
+        (len(input_filenames), config.input_width, config.input_height, 3))
+    large_images = np.zeros(
+        (len(input_filenames), config.output_width, config.output_height, 3))
+    for i, f in enumerate(input_filenames):
+        small_images[i] = np.array(Image.open(f)) / 255.0
+        large_images[i] = np.array(Image.open(f.replace("-in.jpg","-out.jpg"))) / 255.0
+    return (small_images, large_images)
+
 def train_image_generator(batch_size, img_dir):
     """A generator that returns small images and large images.  DO NOT ALTER the validation set"""
     input_filenames = glob.glob(img_dir + "/*-in.jpg")
@@ -135,7 +146,7 @@ class DataGenerator():
             ttype = random.randint(0, 5) #augment option
             #print(self.counter)
             img = self.input_filenames[self.counter + i]
-            #print(img)
+            #print(i, self.counter, img)
             small_img = Image.open(img)
             if self.is_train:
                 small_img = image_transform(small_img, ttype)
@@ -153,7 +164,7 @@ class DataGenerator():
                 large_image = image_transform(large_image, ttype)
 
             large_images[i] = np.array(large_image) / 255.0
-        print(self.counter)
+        #print(self.counter)
         self.counter += batch_size
         yield (small_images, large_images)
         #return (small_images, large_images)
@@ -219,7 +230,16 @@ class ImageLogger(Callback):
             "examples": [wandb.Image(np.concatenate([in_resized[i] * 255, o * 255, out_sample_images[i] * 255], axis=1)) for i, o in enumerate(preds)]
         }, commit=False)
 
-
+def LogImage(model,in_sample_images, out_sample_images):
+    preds = model.predict(in_sample_images)
+    in_resized = []
+    for arr in in_sample_images:
+        # Simple upsampling
+        in_resized.append(arr.repeat(scale, axis=0).repeat(scale, axis=1))
+    wandb.log({
+        "examples": [wandb.Image(np.concatenate([in_resized[i] * 255, o * 255, out_sample_images[i] * 255], axis=1)) for
+                     i, o in enumerate(preds)]
+    }, commit=False)
 
 
 #model = sr_prosr_rcan(input_shape=(config.input_width, config.input_height, 3),scale_ratio=scale)
@@ -242,6 +262,8 @@ def custom_loss():
     return loss
 #for l in model.layers:
     #print(type(l))
+val_generator = image_generator(config.batch_size, val_dir)
+in_sample_images, out_sample_images = next(val_generator)
 if 0:
     model = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
 
@@ -264,13 +286,17 @@ if 0:
                         validation_data=val_generator)
 
 else:
+    #all_train_input_imgs, all_train_output_imgs = get_all_imgs(train_dir)
+    all_val_input_imgs, all_val_output_imgs = get_all_imgs(val_dir)
+
+
     generator = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
 
     discriminator = sr_discriminator(input_shape=(config.output_width, config.output_height, 3))
 
     gan = sr_gan_test((config.input_width, config.input_height, 3), generator, discriminator)
 
-    generator.compile(optimizer='adam', loss='mae')
+    generator.compile(optimizer='adam', loss='mae', metrics=[perceptual_distance, psnr, psnr_v2])
 
     discriminator.compile(optimizer='adam', loss='binary_crossentropy')
 
@@ -283,7 +309,10 @@ else:
     #print(discriminator.summary())
     train_generator = DataGenerator(train_dir,is_train=True)
     val_generator = DataGenerator(val_dir,is_train=False)
-
+    all_dis_loss = []
+    all_gen_loss = []
+    all_gen_mae_loss = []
+    all_gen_dis_loss = []
     for itr in range(config.num_epochs * config.steps_per_epoch):
         input_imgs, output_imgs = next(train_generator.batch_gen(config.batch_size))
         gen_imgs = generator.predict(input_imgs)
@@ -292,6 +321,20 @@ else:
         dis_loss = 0.5 * np.add(real_img_loss,fake_img_loss)
 
         gen_loss = gan.train_on_batch(input_imgs,[np.ones(config.batch_size), output_imgs])
-        if (itr+1) % 10 == 0:
-            print(itr, dis_loss, gen_loss)
+
+        all_dis_loss.append(dis_loss)
+        all_gen_loss.append(gen_loss[0])
+        all_gen_mae_loss.append(gen_loss[2])
+        all_gen_dis_loss.append(gen_loss[1])
+        if (itr+1) % 32 == 0:
+            print(itr, np.mean(np.array(all_dis_loss)), np.mean(np.array(all_gen_loss)), np.mean(np.array(all_gen_mae_loss)), np.mean(np.array(all_gen_dis_loss)))
+
+        if (itr+1) % config.steps_per_epoch == 0:
+            #print("train performance", generator.evaluate(all_train_input_imgs, all_train_output_imgs, config.batch_size))
+            print("val performance", generator.evaluate(all_val_input_imgs, all_val_output_imgs, config.batch_size))
+            LogImage(generator, in_sample_images, out_sample_images)
+            if (itr + 1) % (3 * config.steps_per_epoch) == 0:
+                """Save the generator and discriminator networks"""
+                generator.save_weights("generator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
+                discriminator.save_weights("discriminator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
 
