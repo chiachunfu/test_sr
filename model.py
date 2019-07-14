@@ -165,10 +165,12 @@ def sr_discriminator(input_shape, num_filters=32):
                    padding='same',
                    kernel_initializer='he_normal')(x)
         x = BatchNormalization()(x)
-        x = Activation('relu')(x)
-    x = Dense(num_filters * 16, activation='relu')(x)
+    x = Dense(num_filters)(x)
+    x = Activation('relu')(x)
     x = Flatten()(x)
-    outputs = Dense(1, activation='sigmoid')(x)
+    x = Dense(1)(x)
+    outputs = Activation('sigmoid')(x)
+    #outputs = Dense(1, activation='')(x)
 
     # Instantiate model.
     model = Model(inputs=inputs, outputs=outputs)

@@ -291,22 +291,20 @@ else:
 
 
     generator = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
-
-    discriminator = sr_discriminator(input_shape=(config.output_width, config.output_height, 3))
-
-    gan = sr_gan_test((config.input_width, config.input_height, 3), generator, discriminator)
-
     generator.compile(optimizer='adam', loss='mae', metrics=[perceptual_distance, psnr, psnr_v2])
 
+    discriminator = sr_discriminator(input_shape=(config.output_width, config.output_height, 3))
     discriminator.compile(optimizer='adam', loss='binary_crossentropy')
 
+    gan = sr_gan_test((config.input_width, config.input_height, 3), generator, discriminator)
     gan.compile(
         loss=['binary_crossentropy', custom_loss()],
         loss_weights=[1, 1],
         optimizer=tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
     )
+
     #print(gan.summary())
-    #print(discriminator.summary())
+    print(discriminator.summary())
     train_generator = DataGenerator(train_dir,is_train=True)
     val_generator = DataGenerator(val_dir,is_train=False)
     all_dis_loss = []
@@ -316,27 +314,30 @@ else:
     for itr in range(config.num_epochs * config.steps_per_epoch):
         input_imgs, output_imgs = next(train_generator.batch_gen(config.batch_size))
         gen_imgs = generator.predict(input_imgs)
+        #discriminator.trainable = True
         real_img_loss = discriminator.train_on_batch(output_imgs, np.ones(config.batch_size))
         fake_img_loss = discriminator.train_on_batch(gen_imgs, np.zeros(config.batch_size))
         dis_loss = 0.5 * np.add(real_img_loss,fake_img_loss)
+        #print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss)
+        #discriminator.trainable = False
+        if 1 :
+            gen_loss = gan.train_on_batch(input_imgs,[np.ones(config.batch_size), output_imgs])
+            #print("gan loss: ", gen_loss)
+            all_dis_loss.append(dis_loss)
+            all_gen_loss.append(gen_loss[0])
+            all_gen_mae_loss.append(gen_loss[2])
+            all_gen_dis_loss.append(gen_loss[1])
+            if (itr+1) % 32 == 0:
+                print(itr, np.mean(np.array(all_dis_loss)), np.mean(np.array(all_gen_loss)), np.mean(np.array(all_gen_mae_loss)), np.mean(np.array(all_gen_dis_loss)))
 
-        gen_loss = gan.train_on_batch(input_imgs,[np.ones(config.batch_size), output_imgs])
-
-        all_dis_loss.append(dis_loss)
-        all_gen_loss.append(gen_loss[0])
-        all_gen_mae_loss.append(gen_loss[2])
-        all_gen_dis_loss.append(gen_loss[1])
-        if (itr+1) % 32 == 0:
-            print(itr, np.mean(np.array(all_dis_loss)), np.mean(np.array(all_gen_loss)), np.mean(np.array(all_gen_mae_loss)), np.mean(np.array(all_gen_dis_loss)))
-
-        if (itr+1) % config.steps_per_epoch == 0:
-            #print("train performance", generator.evaluate(all_train_input_imgs, all_train_output_imgs, config.batch_size))
-            results = generator.evaluate(all_val_input_imgs, all_val_output_imgs, config.batch_size)
-            print("val performance", results)
-            LogImage(generator, in_sample_images, out_sample_images)
-            #wandb.log(results)
-            if (itr + 1) % (3 * config.steps_per_epoch) == 0:
-                """Save the generator and discriminator networks"""
-                generator.save_weights("generator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
-                discriminator.save_weights("discriminator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
+            if (itr+1) % config.steps_per_epoch == 0:
+                #print("train performance", generator.evaluate(all_train_input_imgs, all_train_output_imgs, config.batch_size))
+                results = generator.evaluate(all_val_input_imgs, all_val_output_imgs, config.batch_size)
+                print("val performance", results)
+                LogImage(generator, in_sample_images, out_sample_images)
+                #wandb.log(results)
+                if (itr + 1) % (3 * config.steps_per_epoch) == 0:
+                    """Save the generator and discriminator networks"""
+                    generator.save_weights("generator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
+                    discriminator.save_weights("discriminator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
 
