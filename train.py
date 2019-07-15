@@ -293,6 +293,17 @@ else:
     generator = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
     generator.compile(optimizer='adam', loss='mae', metrics=[perceptual_distance, psnr, psnr_v2])
 
+
+    ## train generator for a couple of epochs
+
+    generator.fit_generator(train_image_generator(config.batch_size, train_dir),
+                        steps_per_epoch=config.steps_per_epoch,
+                        epochs=5, callbacks=[
+            ImageLogger(), WandbCallback()],
+                        validation_steps=config.val_steps_per_epoch,
+                        validation_data=val_generator)
+    generator.save_weights("trained_generator_{}X_epoch{}.h5".format(scale, 0))
+
     discriminator = sr_discriminator(input_shape=(config.output_width, config.output_height, 3))
     discriminator.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
                           , loss='binary_crossentropy')
@@ -321,7 +332,10 @@ else:
         dis_loss = 0.5 * np.add(real_img_loss,fake_img_loss)
         #print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss)
         #discriminator.trainable = False
-        if 1 :
+        if itr > 2000:
+            if itr == 2001:
+                discriminator.save_weights("trained_discriminator_{}X_epoch{}.h5".format(scale, 0))
+
             input_imgs, output_imgs = next(train_generator.batch_gen(config.batch_size))
             gen_loss = gan.train_on_batch(input_imgs,[np.ones(config.batch_size), output_imgs])
             #print("gan loss: ", gen_loss)
@@ -347,6 +361,6 @@ else:
                 #wandb.log(results)
                 if (itr + 1) % (3 * 1000) == 0:
                     """Save the generator and discriminator networks"""
-                    generator.save_weights("new_generator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
-                    discriminator.save_weights("new_discriminator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
+                    generator.save_weights("trained_new_generator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
+                    discriminator.save_weights("trained_new_discriminator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
 
