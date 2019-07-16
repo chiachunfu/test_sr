@@ -141,7 +141,7 @@ class DataGenerator():
         #    if self.is_train:
         #        print("reset")
         #random.shuffle(self.input_filenames)
-        fidx = random.randint(len(self.input_filenames),size=config.batch_size)  # augment option
+        fidx = np.random.randint(len(self.input_filenames),size=config.batch_size)  # augment option
         #print(len(self.input_filenames))
         for i in range(batch_size):
             ttype = random.randint(0, 5) #augment option
