@@ -355,7 +355,7 @@ else:
             all_gen_loss.append(gen_loss[0])
             all_gen_mae_loss.append(gen_loss[2])
             all_gen_dis_loss.append(gen_loss[1])
-            if (itr+1) % 1 == 32:
+            if (itr+1) % 32 == 0:
 
                 print(itr, np.mean(np.array(all_dis_loss)), np.mean(np.array(all_gen_loss)), np.mean(np.array(all_gen_mae_loss)), np.mean(np.array(all_gen_dis_loss)))
                 all_dis_loss = []
