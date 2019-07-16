@@ -355,7 +355,7 @@ else:
             all_gen_loss.append(gen_loss[0])
             all_gen_mae_loss.append(gen_loss[2])
             all_gen_dis_loss.append(gen_loss[1])
-            if (itr+1) % 32 == 0:
+            if (itr+1) % 1 == 32:
 
                 print(itr, np.mean(np.array(all_dis_loss)), np.mean(np.array(all_gen_loss)), np.mean(np.array(all_gen_mae_loss)), np.mean(np.array(all_gen_dis_loss)))
                 all_dis_loss = []
@@ -363,7 +363,7 @@ else:
                 all_gen_mae_loss = []
                 all_gen_dis_loss = []
 
-            if (itr+1) % 512 == 0 or (itr + 1) < itr_for_disc+10 and 0:
+            if (itr+1) % 512 == 0 or (itr + 1) < itr_for_disc+10:
                 results = generator.evaluate(input_imgs, output_imgs, config.batch_size)
 
                 #print("train performance", generator.evaluate(all_train_input_imgs, all_train_output_imgs, config.batch_size))
