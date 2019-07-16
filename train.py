@@ -368,7 +368,7 @@ else:
 
         elif (itr + 1) % 100 == 0:
             print(itr, "real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss)
-            results = discriminator.evaluate(all_val_input_imgs, all_val_output_imgs, config.batch_size)
+            results = discriminator.evaluate(gen_imgs, output_imgs, config.batch_size)
             print("val performance", results)
 
 
