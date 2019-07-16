@@ -307,7 +307,7 @@ else:
     discriminator = sr_discriminator(input_shape=(config.output_width, config.output_height, 3))
     discriminator.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
                           , loss='binary_crossentropy'
-                          , metrics='accuracy')
+                          , metrics='binary_accuracy')
 
     gan = sr_gan_test((config.input_width, config.input_height, 3), generator, discriminator)
     gan.compile(
