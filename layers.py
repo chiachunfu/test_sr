@@ -1,4 +1,4 @@
-from tensorflow.keras.layers import Conv2D, BatchNormalization, Activation, Lambda, add, multiply,GlobalAveragePooling2D,Dense
+from tensorflow.keras.layers import Conv2D, BatchNormalization, Activation, Lambda, add, multiply,GlobalAveragePooling2D,Dense, LeakyReLU
 from tensorflow.keras.regularizers import l2
 import tensorflow as tf
 from tensorflow.keras import backend as K
@@ -122,7 +122,7 @@ def resnet_layer(inputs,
         elif weight_normalization:
             pass
         if activation is not None:
-            x = Activation(activation)(x)
+            x = LeakyReLU(alpha=0.01)(x)
         x = conv2(x)
 
     else: ## bottleneck structure
@@ -161,7 +161,7 @@ def resnet_layer(inputs,
         elif weight_normalization:
             pass
         if activation is not None:
-            x = Activation(activation)(x)
+            x = LeakyReLU(alpha=0.01)(x)
         x = conv2(x)
         x = conv_bot_out(x)
 
