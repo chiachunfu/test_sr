@@ -1,6 +1,7 @@
 
 from tensorflow.keras.layers import Conv2D, BatchNormalization, Activation, Input, add, Lambda, Dense, Flatten, LeakyReLU
 from tensorflow.keras.regularizers import l2
+from tensorflow.keras.initializers import RandomUniform
 from tensorflow.keras.models import Sequential, Model
 from layers import resnet_layer, SubpixelConv2D, Conv2DWeightNorm, attention_layer, BicubicUpscale
 from tensorflow.keras import backend as K
@@ -16,25 +17,28 @@ def sr_resnet(input_shape,scale_ratio):
     #scale_ratio = 2
     num_filters_out = max(64, 3 * scale_ratio**2)
     inputs = Input(shape=input_shape)
-
+    test_initializer = RandomUniform(minval=-0.05, maxval=0.05,seed=None)
+    #test_initializer = 'he_normal'
     x = Conv2DWeightNorm(num_filters,
                kernel_size=3,
                strides=1,
                padding='same',
-               kernel_initializer='he_normal',
+               kernel_initializer=test_initializer,
                kernel_regularizer=l2(reg_scale)
                )(inputs)
     num_res_layer = 8
 
     def res_blocks(res_in, num_chans):
         x = resnet_layer(inputs=res_in,
-                         num_filters=num_chans
+                         num_filters=num_chans,
+                         kernel_initializer=test_initializer
                          )
         return x
 
     def res_chan_attention_blocks(res_in, num_chans, reduction_ratio):
         x = resnet_layer(inputs=res_in,
-                         num_filters=num_chans
+                         num_filters=num_chans,
+                         kernel_initializer=test_initializer
                          )
         x = attention_layer(x, 4)
         return x
@@ -51,7 +55,7 @@ def sr_resnet(input_shape,scale_ratio):
                          kernel_size=1,
                          strides=1,
                          padding='same',
-                         kernel_initializer='he_normal',
+                         kernel_initializer=test_initializer,
                          kernel_regularizer=l2(reg_scale)
                          )(x)
     for l in range(0):
@@ -64,8 +68,8 @@ def sr_resnet(input_shape,scale_ratio):
                          kernel_size=3,
                          strides=1,
                          padding='same',
-                         kernel_initializer='he_normal',
-                         kernel_regularizer=l2(reg_scale)
+                                    kernel_initializer=test_initializer,
+                                    kernel_regularizer=l2(reg_scale)
                          )(x)
 
     up_samp = SubpixelConv2D([None, input_shape[0], input_shape[1], num_filters_out],
@@ -78,8 +82,8 @@ def sr_resnet(input_shape,scale_ratio):
                                    kernel_size=3,
                                    strides=1,
                                    padding='same',
-                                   kernel_initializer='he_normal',
-                                   kernel_regularizer=l2(reg_scale)
+                                             kernel_initializer=test_initializer,
+                                             kernel_regularizer=l2(reg_scale)
                                    )(inputs)
 
         up_samp_skip = SubpixelConv2D([None, input_shape[0], input_shape[1], num_filters_out],
@@ -190,7 +194,7 @@ def sr_gan_test(input_shape, gen_model, dis_model,resnet_model,):
     dis_out = dis_model(gen_out)
 
     # Instantiate model.
-    model = Model(inputs=inputs, outputs=[dis_out, gen_feat])
+    model = Model(inputs=inputs, outputs=[dis_out, gen_feat, gen_out])
     return model
 
 def resnet_model(input_shape):
@@ -198,7 +202,7 @@ def resnet_model(input_shape):
     # Get the vgg network. Extract features from last conv layer
     res = ResNet50(weights="imagenet")
     res.outputs = [res.layers[51].input]
-
+    print(res.layers[51].input.shape)
     # Create model and compile
     model = Model(inputs=inputs, outputs=res(inputs))
     model.trainable = False

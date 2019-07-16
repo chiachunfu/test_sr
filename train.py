@@ -309,8 +309,8 @@ else:
 
     gan = sr_gan_test((config.input_width, config.input_height, 3), generator, discriminator,res)
     gan.compile(
-        loss=['binary_crossentropy', 'mse'],
-        loss_weights=[1, 1],
+        loss=['binary_crossentropy', 'mse', 'mae'],
+        loss_weights=[1e-3, 0.2, 0.8],
         optimizer=tf.keras.optimizers.Adam(lr=0.0002,decay=0.9)
     )
     ## train generator for a couple of epochs
@@ -349,7 +349,7 @@ else:
             input_imgs, output_imgs = next(train_generator.batch_gen(config.batch_size))
 
             real_feat = res.predict(preprocess_resnet(output_imgs))
-            gen_loss = gan.train_on_batch(input_imgs,[np.ones(config.batch_size), real_feat])
+            gen_loss = gan.train_on_batch(input_imgs,[np.ones(config.batch_size), real_feat, output_imgs])
 
             #real_img_loss = discriminator.train_on_batch(output_imgs, np.ones(config.batch_size) * 0.9)
             gen_imgs = generator.predict(input_imgs)
@@ -383,7 +383,8 @@ else:
                     discriminator.save_weights("trained_new_discriminator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
 
         elif (itr + 1) % 100 == 0:
-            print(itr, "real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss)
+            pass
+            #print(itr, "real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss)
             #results = discriminator.evaluate(gen_imgs, output_imgs, config.batch_size)
             #print("val performance", results)
 
