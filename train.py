@@ -306,7 +306,8 @@ else:
 
     discriminator = sr_discriminator(input_shape=(config.output_width, config.output_height, 3))
     discriminator.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
-                          , loss='binary_crossentropy')
+                          , loss='binary_crossentropy'
+                          , metrics='accuracy')
 
     gan = sr_gan_test((config.input_width, config.input_height, 3), generator, discriminator)
     gan.compile(
@@ -366,4 +367,8 @@ else:
                     discriminator.save_weights("trained_new_discriminator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
 
         elif (itr + 1) % 100 == 0:
-            print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss)
+            print(itr, "real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss)
+            results = discriminator.evaluate(all_val_input_imgs, all_val_output_imgs, config.batch_size)
+            print("val performance", results)
+
+
