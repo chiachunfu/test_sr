@@ -140,13 +140,13 @@ class DataGenerator():
         #    self.counter = 0
         #    if self.is_train:
         #        print("reset")
-        random.shuffle(self.input_filenames)
+        #random.shuffle(self.input_filenames)
+        fidx = random.randint(len(self.input_filenames),size=config.batch_size)  # augment option
         #print(len(self.input_filenames))
         for i in range(batch_size):
-            fidx = random.randint(0, len(input_filenames)) #augment option
             ttype = random.randint(0, 5) #augment option
             #print(self.counter)
-            img = self.input_filenames[fidx]
+            img = self.input_filenames[fidx[i]]
             #print(i, self.counter, img)
             small_img = Image.open(img)
             if self.is_train:
