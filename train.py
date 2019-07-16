@@ -317,7 +317,7 @@ else:
     )
 
     #print(gan.summary())
-    print(discriminator.summary())
+    #print(discriminator.summary())
     train_generator = DataGenerator(train_dir,is_train=True)
     val_generator = DataGenerator(val_dir,is_train=False)
     all_dis_loss = []
@@ -368,7 +368,7 @@ else:
 
         elif (itr + 1) % 100 == 0:
             print(itr, "real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss)
-            results = discriminator.evaluate(gen_imgs, output_imgs, config.batch_size)
-            print("val performance", results)
+            #results = discriminator.evaluate(gen_imgs, output_imgs, config.batch_size)
+            #print("val performance", results)
 
 
