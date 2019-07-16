@@ -5,7 +5,7 @@ import os
 from PIL import Image
 import numpy as np
 import tensorflow as tf
-from model import sr_resnet, sr_prosr_rcan,sr_discriminator, sr_gan_test, vgg_model
+from model import sr_resnet, sr_prosr_rcan,sr_discriminator, sr_gan_test, resnet_model
 import re
 
 
@@ -290,9 +290,9 @@ if 0:
 else:
     #all_train_input_imgs, all_train_output_imgs = get_all_imgs(train_dir)
     all_val_input_imgs, all_val_output_imgs = get_all_imgs(val_dir)
-    if 0:
-        vgg = vgg_model(input_shape=(config.output_width, config.output_height, 3))
-        vgg.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
+    if 1:
+        res = resnet_model(input_shape=(config.output_width, config.output_height, 3))
+        res.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
                               , loss='mse'
                               , metrics=['accuracy'])
 
@@ -305,23 +305,22 @@ else:
     generator.compile(optimizer='adam', loss='mae', metrics=[perceptual_distance, psnr, psnr_v2])
 
 
-    ## train generator for a couple of epochs
-    generator.fit_generator(train_image_generator(config.batch_size, train_dir),
-                        steps_per_epoch=config.steps_per_epoch,
-                        epochs=5, callbacks=[
-            ImageLogger(), WandbCallback()],
-                        validation_steps=config.val_steps_per_epoch,
-                        validation_data=val_generator)
-    generator.save_weights("trained_generator_{}X_epoch{}.h5".format(scale, 0))
 
 
-
-    gan = sr_gan_test((config.input_width, config.input_height, 3), generator, discriminator)
+    gan = sr_gan_test((config.input_width, config.input_height, 3), generator, discriminator,res)
     gan.compile(
         loss=['binary_crossentropy', 'mse'],
         loss_weights=[1, 1],
         optimizer=tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
     )
+    ## train generator for a couple of epochs
+    generator.fit_generator(train_image_generator(config.batch_size, train_dir),
+                            steps_per_epoch=config.steps_per_epoch,
+                            epochs=5, callbacks=[
+            ImageLogger(), WandbCallback()],
+                            validation_steps=config.val_steps_per_epoch,
+                            validation_data=val_generator)
+    generator.save_weights("trained_generator_{}X_epoch{}.h5".format(scale, 0))
 
     #print(gan.summary())
     #print(discriminator.summary())
