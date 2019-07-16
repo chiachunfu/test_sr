@@ -335,6 +335,7 @@ else:
         if itr > 2000:
             if itr == 2001:
                 discriminator.save_weights("trained_discriminator_{}X_epoch{}.h5".format(scale, 0))
+                print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss)
 
             input_imgs, output_imgs = next(train_generator.batch_gen(config.batch_size))
             gen_loss = gan.train_on_batch(input_imgs,[np.ones(config.batch_size), output_imgs])
@@ -364,3 +365,5 @@ else:
                     generator.save_weights("trained_new_generator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
                     discriminator.save_weights("trained_new_discriminator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
 
+        elif (itr + 1) % 100 == 0:
+            print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss)
