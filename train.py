@@ -311,7 +311,7 @@ else:
     gan = sr_gan_test((config.input_width, config.input_height, 3), generator, discriminator)
     gan.compile(
         loss=['binary_crossentropy', custom_loss()],
-        loss_weights=[1e-1, 1],
+        loss_weights=[1, 1],
         optimizer=tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
     )
 
