@@ -5,7 +5,7 @@ import os
 from PIL import Image
 import numpy as np
 import tensorflow as tf
-from model import sr_resnet, sr_prosr_rcan,sr_discriminator, sr_gan_test, resnet_model
+from model import sr_resnet, sr_prosr_rcan,sr_discriminator, sr_gan_test, resnet_model, preprocess_resnet
 import re
 
 
@@ -311,16 +311,17 @@ else:
     gan.compile(
         loss=['binary_crossentropy', 'mse'],
         loss_weights=[1, 1],
-        optimizer=tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
+        optimizer=tf.keras.optimizers.Adam(lr=0.0002,decay=0.9)
     )
     ## train generator for a couple of epochs
-    generator.fit_generator(train_image_generator(config.batch_size, train_dir),
-                            steps_per_epoch=config.steps_per_epoch,
-                            epochs=5, callbacks=[
-            ImageLogger(), WandbCallback()],
-                            validation_steps=config.val_steps_per_epoch,
-                            validation_data=val_generator)
-    generator.save_weights("trained_generator_{}X_epoch{}.h5".format(scale, 0))
+    if 0:
+        generator.fit_generator(train_image_generator(config.batch_size, train_dir),
+                                steps_per_epoch=config.steps_per_epoch,
+                                epochs=5, callbacks=[
+                ImageLogger(), WandbCallback()],
+                                validation_steps=config.val_steps_per_epoch,
+                                validation_data=val_generator)
+        generator.save_weights("trained_generator_{}X_epoch{}.h5".format(scale, 0))
 
     #print(gan.summary())
     #print(discriminator.summary())
@@ -330,13 +331,13 @@ else:
     all_gen_loss = []
     all_gen_mae_loss = []
     all_gen_dis_loss = []
-    itr_for_disc = 1000
+    itr_for_disc = 1
     for itr in range(config.num_epochs * config.steps_per_epoch):
         input_imgs, output_imgs = next(train_generator.batch_gen(config.batch_size))
         gen_imgs = generator.predict(input_imgs)
         #discriminator.trainable = True
-        real_img_loss = discriminator.train_on_batch(output_imgs, np.ones(config.batch_size))
-        fake_img_loss = discriminator.train_on_batch(gen_imgs, np.zeros(config.batch_size))
+        real_img_loss = discriminator.train_on_batch(output_imgs, np.ones(config.batch_size)*0.9)
+        fake_img_loss = discriminator.train_on_batch(gen_imgs, np.zeros(config.batch_size)*0.1)
         dis_loss = 0.5 * np.add(real_img_loss,fake_img_loss)
         #print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss)
         #discriminator.trainable = False
@@ -346,7 +347,9 @@ else:
                 print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss)
 
             input_imgs, output_imgs = next(train_generator.batch_gen(config.batch_size))
-            gen_loss = gan.train_on_batch(input_imgs,[np.ones(config.batch_size), output_imgs])
+
+            real_feat = res.predict(preprocess_resnet(output_imgs))
+            gen_loss = gan.train_on_batch(input_imgs,[np.ones(config.batch_size), real_feat])
             #print("gan loss: ", gen_loss)
             all_dis_loss.append(dis_loss[0])
             all_gen_loss.append(gen_loss[0])
@@ -360,7 +363,7 @@ else:
                 all_gen_mae_loss = []
                 all_gen_dis_loss = []
 
-            if (itr+1) % 512 == 0 or (itr + 1) < itr_for_disc+10:
+            if (itr+1) % 512 == 0 or (itr + 1) < itr_for_disc+10 and 0:
                 results = generator.evaluate(input_imgs, output_imgs, config.batch_size)
 
                 #print("train performance", generator.evaluate(all_train_input_imgs, all_train_output_imgs, config.batch_size))
