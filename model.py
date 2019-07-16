@@ -182,9 +182,7 @@ def sr_discriminator(input_shape, num_filters=32):
 def sr_gan_test(input_shape, gen_model, dis_model, vgg_model):
     inputs = Input(shape=input_shape)
     gen_out = gen_model(inputs)
-    gen_feat = vgg_model(
-        preprocess_vgg(gen_out)
-    )
+    gen_feat = gen_model.layers[-1].input
     dis_model.trainable=False
 
     dis_out = dis_model(gen_out)

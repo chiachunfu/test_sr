@@ -290,11 +290,11 @@ if 0:
 else:
     #all_train_input_imgs, all_train_output_imgs = get_all_imgs(train_dir)
     all_val_input_imgs, all_val_output_imgs = get_all_imgs(val_dir)
-
-    vgg = vgg_model(input_shape=(config.output_width, config.output_height, 3))
-    vgg.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
-                          , loss='mse'
-                          , metrics=['accuracy'])
+    if 0:
+        vgg = vgg_model(input_shape=(config.output_width, config.output_height, 3))
+        vgg.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
+                              , loss='mse'
+                              , metrics=['accuracy'])
 
     discriminator = sr_discriminator(input_shape=(config.output_width, config.output_height, 3))
     discriminator.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
