@@ -143,16 +143,17 @@ class DataGenerator():
         random.shuffle(self.input_filenames)
         #print(len(self.input_filenames))
         for i in range(batch_size):
+            fidx = random.randint(0, len(input_filenames)) #augment option
             ttype = random.randint(0, 5) #augment option
             #print(self.counter)
-            img = self.input_filenames[self.counter + i]
+            img = self.input_filenames[fidx]
             #print(i, self.counter, img)
             small_img = Image.open(img)
             if self.is_train:
                 small_img = image_transform(small_img, ttype)
             small_images[i] = np.array(small_img) / 255.0
-            img = Image.open(img.replace("-in.jpg", "-out.jpg"))
-            if 1:
+            large_image = Image.open(img.replace("-in.jpg", "-out.jpg"))
+            if 0:
                 if 'P' in img.mode:  # check if image is a palette type
                     img = img.convert("RGB")  # convert it to RGB
                     img = img.resize((config.input_width*scale, config.input_height*scale), Image.ANTIALIAS)  # resize it
@@ -312,7 +313,7 @@ else:
     gan = sr_gan_test((config.input_width, config.input_height, 3), generator, discriminator)
     gan.compile(
         loss=['binary_crossentropy', 'mae'],
-        loss_weights=[1, 1],
+        loss_weights=[5, 1],
         optimizer=tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
     )
 
@@ -324,6 +325,7 @@ else:
     all_gen_loss = []
     all_gen_mae_loss = []
     all_gen_dis_loss = []
+    itr_for_disc = 500
     for itr in range(config.num_epochs * config.steps_per_epoch):
         input_imgs, output_imgs = next(train_generator.batch_gen(config.batch_size))
         gen_imgs = generator.predict(input_imgs)
@@ -333,15 +335,15 @@ else:
         dis_loss = 0.5 * np.add(real_img_loss,fake_img_loss)
         #print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss)
         #discriminator.trainable = False
-        if itr > 2000:
-            if itr == 2001:
+        if itr > itr_for_disc:
+            if itr == itr_for_disc+1:
                 discriminator.save_weights("trained_discriminator_{}X_epoch{}.h5".format(scale, 0))
                 print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss)
 
             input_imgs, output_imgs = next(train_generator.batch_gen(config.batch_size))
             gen_loss = gan.train_on_batch(input_imgs,[np.ones(config.batch_size), output_imgs])
             #print("gan loss: ", gen_loss)
-            all_dis_loss.append(dis_loss)
+            all_dis_loss.append(dis_loss[0])
             all_gen_loss.append(gen_loss[0])
             all_gen_mae_loss.append(gen_loss[2])
             all_gen_dis_loss.append(gen_loss[1])
@@ -353,13 +355,13 @@ else:
                 all_gen_mae_loss = []
                 all_gen_dis_loss = []
 
-            if (itr+1) % 512 == 0 or (itr + 1) < 2010:
+            if (itr+1) % 512 == 0 or (itr + 1) < itr_for_disc+10:
                 results = generator.evaluate(input_imgs, output_imgs, config.batch_size)
 
                 #print("train performance", generator.evaluate(all_train_input_imgs, all_train_output_imgs, config.batch_size))
                 results = generator.evaluate(all_val_input_imgs, all_val_output_imgs, config.batch_size)
                 print("val performance", results)
-                LogImage(generator, in_sample_images, out_sample_images)
+                #LogImage(generator, in_sample_images, out_sample_images)
                 #wandb.log(results)
                 if (itr + 1) % (3 * 1000) == 0:
                     """Save the generator and discriminator networks"""
