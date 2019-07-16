@@ -353,7 +353,7 @@ else:
 
             #real_img_loss = discriminator.train_on_batch(output_imgs, np.ones(config.batch_size) * 0.9)
             gen_imgs = generator.predict(input_imgs)
-            fake_img_loss = discriminator.evalute(gen_imgs, np.ones(config.batch_size)*0.9)
+            fake_img_loss = discriminator.evaluate(gen_imgs, np.ones(config.batch_size)*0.9)
 
             #print("gan loss: ", gen_loss)
             all_dis_loss.append(dis_loss[0])
