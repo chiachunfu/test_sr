@@ -337,19 +337,25 @@ else:
         gen_imgs = generator.predict(input_imgs)
         #discriminator.trainable = True
         real_img_loss = discriminator.train_on_batch(output_imgs, np.ones(config.batch_size)*0.9)
-        fake_img_loss = discriminator.train_on_batch(gen_imgs, np.zeros(config.batch_size)*0.1)
+        fake_img_loss = discriminator.train_on_batch(gen_imgs, np.ones(config.batch_size)*0.1)
         dis_loss = 0.5 * np.add(real_img_loss,fake_img_loss)
         #print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss)
         #discriminator.trainable = False
         if itr > itr_for_disc:
             if itr == itr_for_disc+1:
                 discriminator.save_weights("trained_discriminator_{}X_epoch{}.h5".format(scale, 0))
-                print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss)
+                print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss, dis_loss)
 
             input_imgs, output_imgs = next(train_generator.batch_gen(config.batch_size))
 
             real_feat = res.predict(preprocess_resnet(output_imgs))
             gen_loss = gan.train_on_batch(input_imgs,[np.ones(config.batch_size), real_feat])
+
+            #real_img_loss = discriminator.train_on_batch(output_imgs, np.ones(config.batch_size) * 0.9)
+            gen_imgs = generator.predict(input_imgs)
+            fake_img_loss = discriminator.train_on_batch(gen_imgs, np.ones(config.batch_size))
+
+            print("fake_img_loss: ", fake_img_loss)
             #print("gan loss: ", gen_loss)
             all_dis_loss.append(dis_loss[0])
             all_gen_loss.append(gen_loss[0])
@@ -363,7 +369,7 @@ else:
                 all_gen_mae_loss = []
                 all_gen_dis_loss = []
 
-            if (itr+1) % 512 == 0 or (itr + 1) < itr_for_disc+10:
+            if (itr+1) % 512 == 0 or (itr + 1) < itr_for_disc+2:
                 results = generator.evaluate(input_imgs, output_imgs, config.batch_size)
 
                 #print("train performance", generator.evaluate(all_train_input_imgs, all_train_output_imgs, config.batch_size))
