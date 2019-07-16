@@ -5,8 +5,9 @@ import os
 from PIL import Image
 import numpy as np
 import tensorflow as tf
-from model import sr_resnet, sr_prosr_rcan,sr_discriminator, sr_gan_test
+from model import sr_resnet, sr_prosr_rcan,sr_discriminator, sr_gan_test, vgg_model
 import re
+
 
 configProt = tf.ConfigProto()
 configProt.gpu_options.allow_growth = True
@@ -289,17 +290,22 @@ if 0:
 else:
     #all_train_input_imgs, all_train_output_imgs = get_all_imgs(train_dir)
     all_val_input_imgs, all_val_output_imgs = get_all_imgs(val_dir)
+
+    vgg = vgg_model(input_shape=(config.output_width, config.output_height, 3))
+    vgg.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
+                          , loss='mse'
+                          , metrics=['accuracy'])
+
     discriminator = sr_discriminator(input_shape=(config.output_width, config.output_height, 3))
     discriminator.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
                           , loss='binary_crossentropy'
-                          , metrics=['binary_accuracy'])
+                          , metrics=['accuracy'])
 
     generator = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
     generator.compile(optimizer='adam', loss='mae', metrics=[perceptual_distance, psnr, psnr_v2])
 
 
     ## train generator for a couple of epochs
-
     generator.fit_generator(train_image_generator(config.batch_size, train_dir),
                         steps_per_epoch=config.steps_per_epoch,
                         epochs=5, callbacks=[
@@ -312,8 +318,8 @@ else:
 
     gan = sr_gan_test((config.input_width, config.input_height, 3), generator, discriminator)
     gan.compile(
-        loss=['binary_crossentropy', 'mae'],
-        loss_weights=[5, 1],
+        loss=['binary_crossentropy', 'mse'],
+        loss_weights=[1, 1],
         optimizer=tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
     )
 
@@ -325,7 +331,7 @@ else:
     all_gen_loss = []
     all_gen_mae_loss = []
     all_gen_dis_loss = []
-    itr_for_disc = 500
+    itr_for_disc = 1000
     for itr in range(config.num_epochs * config.steps_per_epoch):
         input_imgs, output_imgs = next(train_generator.batch_gen(config.batch_size))
         gen_imgs = generator.predict(input_imgs)
@@ -372,5 +378,4 @@ else:
             print(itr, "real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss)
             #results = discriminator.evaluate(gen_imgs, output_imgs, config.batch_size)
             #print("val performance", results)
-
 

@@ -4,6 +4,8 @@ from tensorflow.keras.regularizers import l2
 from tensorflow.keras.models import Sequential, Model
 from layers import resnet_layer, SubpixelConv2D, Conv2DWeightNorm, attention_layer, BicubicUpscale
 from tensorflow.keras import backend as K
+from tensorflow.keras.applications import VGG19
+from tensorflow.keras.applications.vgg19 import preprocess_input
 
 def sr_resnet(input_shape,scale_ratio):
     #inputs = Input(shape=input_shape)
@@ -177,14 +179,34 @@ def sr_discriminator(input_shape, num_filters=32):
     model = Model(inputs=inputs, outputs=outputs)
     return model
 
-def sr_gan_test(input_shape, gen_model, dis_model):
+def sr_gan_test(input_shape, gen_model, dis_model, vgg_model):
     inputs = Input(shape=input_shape)
     gen_out = gen_model(inputs)
-
+    gen_feat = vgg_model(
+        preprocess_vgg(gen_out)
+    )
     dis_model.trainable=False
 
     dis_out = dis_model(gen_out)
 
     # Instantiate model.
-    model = Model(inputs=inputs, outputs=[dis_out, gen_out])
+    model = Model(inputs=inputs, outputs=[dis_out, gen_feat])
     return model
+
+def vgg_model(input_shape):
+    inputs = Input(shape=input_shape)
+    # Get the vgg network. Extract features from last conv layer
+    vgg = VGG19(weights="imagenet")
+    vgg.outputs = [vgg.layers[20].output]
+
+    # Create model and compile
+    model = Model(inputs=inputs, outputs=vgg(inputs))
+    model.trainable = False
+    return model
+
+def preprocess_vgg(x):
+    """Take a HR image [-1, 1], convert to [0, 255], then to input for VGG network"""
+    if isinstance(x, np.ndarray):
+        return preprocess_input((x)*255.)
+    else:
+        return Lambda(lambda x: preprocess_input(x * 255.0))(x)
