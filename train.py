@@ -288,7 +288,10 @@ if 0:
 else:
     #all_train_input_imgs, all_train_output_imgs = get_all_imgs(train_dir)
     all_val_input_imgs, all_val_output_imgs = get_all_imgs(val_dir)
-
+    discriminator = sr_discriminator(input_shape=(config.output_width, config.output_height, 3))
+    discriminator.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
+                          , loss='binary_crossentropy'
+                          , metrics=['binary_accuracy'])
 
     generator = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
     generator.compile(optimizer='adam', loss='mae', metrics=[perceptual_distance, psnr, psnr_v2])
@@ -304,10 +307,7 @@ else:
                         validation_data=val_generator)
     generator.save_weights("trained_generator_{}X_epoch{}.h5".format(scale, 0))
 
-    discriminator = sr_discriminator(input_shape=(config.output_width, config.output_height, 3))
-    discriminator.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
-                          , loss='binary_crossentropy'
-                          , metrics='binary_accuracy')
+
 
     gan = sr_gan_test((config.input_width, config.input_height, 3), generator, discriminator)
     gan.compile(
