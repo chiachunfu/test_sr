@@ -360,7 +360,7 @@ if 0:
     opt = tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
 
     # DONT ALTER metrics=[perceptual_distance]
-    model.compile(optimizer='adam', loss=custom_loss(),l
+    model.compile(optimizer='adam', loss=custom_loss(),
                   metrics=[perceptual_distance, psnr, psnr_v2])
 
     val_generator = image_generator(config.batch_size, val_dir)
