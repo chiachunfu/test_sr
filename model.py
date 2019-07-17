@@ -184,7 +184,7 @@ def sr_discriminator(input_shape, num_filters=32):
     model = Model(inputs=inputs, outputs=outputs)
     return model
 
-def sr_gan_test(input_shape, gen_model, dis_model,resnet_model,):
+def sr_gan_test(input_shape, gen_model, dis_model,resnet_model):
     inputs = Input(shape=input_shape)
     gen_out = gen_model(inputs)
     gen_feat = resnet_model(preprocess_resnet(gen_out))
@@ -227,7 +227,7 @@ def preprocess_resnet(x):
         return Lambda(lambda x: preprocess_input(x * 255.0))(x)
 
 
-def sr_resnet_test(input_shape,scale_ratio):
+def sr_resnet_test(input_shape,scale_ratio,resnet_model):
     #inputs = Input(shape=input_shape)
     # v2 performs Conv2D with BN-ReLU on input before splitting into 2 paths
     num_filters = 64
