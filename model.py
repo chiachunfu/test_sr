@@ -212,8 +212,8 @@ def vgg19_model(input_shape):
     inputs = Input(shape=input_shape)
     # Get the vgg network. Extract features from last conv layer
     vgg = VGG19(weights="imagenet")
-    vgg.outputs = [vgg.layers[54].input]
-    #print(res.layers[51].input.shape)
+    vgg.outputs = [vgg.layers[20].input]
+    print(vgg.layers[20].input.shape)
     # Create model and compile
     model = Model(inputs=inputs, outputs=vgg(inputs))
     model.trainable = False
