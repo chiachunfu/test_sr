@@ -419,7 +419,7 @@ elif 1:
                   metrics=[perceptual_distance, psnr, psnr_v2])
 
     val_generator = image_generator(config.batch_size, val_dir)
-    train_generator = image_generator(config.batch_size, train_dir)
+    train_generator = train_image_generator(config.batch_size, train_dir)
     #in_sample_images, out_sample_images = next(val_generator)
     all_val_input_imgs, all_val_output_imgs = get_all_imgs(val_dir)
     all_content_loss = []
