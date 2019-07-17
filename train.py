@@ -299,7 +299,7 @@ else:
     #all_train_input_imgs, all_train_output_imgs = get_all_imgs(train_dir)
     all_val_input_imgs, all_val_output_imgs = get_all_imgs(val_dir)
     gan_lr = 0.001
-    disc_lr = 0.01
+    disc_lr = 0.002
     if 1:
         res = resnet_model(input_shape=(config.output_width, config.output_height, 3))
         res.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
