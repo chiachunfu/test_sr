@@ -379,7 +379,7 @@ elif 1:
     res.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
                 , loss='mse'
                 )
-    model = sr_resnet_test(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale,res)
+    model = sr_resnet_test(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale,resnet_model=res)
 
     opt = tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
 
