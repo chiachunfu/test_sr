@@ -5,7 +5,7 @@ import os
 from PIL import Image
 import numpy as np
 import tensorflow as tf
-from model import sr_resnet, sr_prosr_rcan,sr_discriminator, sr_gan_test, resnet_model, preprocess_resnet
+from model import sr_resnet, sr_prosr_rcan,sr_discriminator, sr_gan_test, resnet_model, preprocess_resnet, vgg19_model
 import re
 from tensorflow.keras import backend as K
 
@@ -305,6 +305,10 @@ else:
         res.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
                               , loss='mse'
                     )
+        vgg = vgg19_model(input_shape=(config.output_width, config.output_height, 3))
+        vgg.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
+                    , loss='mse'
+                    )
     discriminator = sr_discriminator(input_shape=(config.output_width, config.output_height, 3))
     discriminator.compile(optimizer=tf.keras.optimizers.Adam(lr=disc_lr, decay=0.9)
                           , loss='binary_crossentropy'
@@ -317,7 +321,7 @@ else:
     gan = sr_gan_test((config.input_width, config.input_height, 3), generator, discriminator,res)
     gan.compile(
         loss=['binary_crossentropy', 'mse', 'mae'],
-        loss_weights=[1e-3, 0.1, 0.9],
+        loss_weights=[1e-3, 0.06, 0.9],
         optimizer=tf.keras.optimizers.Adam(lr=gan_lr,decay=0.9)
     )
     ## train generator for a couple of epochs
@@ -358,7 +362,7 @@ else:
 
             #input_imgs, output_imgs = next(train_generator.batch_gen(config.batch_size))
 
-            real_feat = res.predict(preprocess_resnet(output_imgs))
+            real_feat = vgg.predict(preprocess_resnet(output_imgs))
             gen_loss = gan.train_on_batch(input_imgs,[np.ones(config.batch_size), real_feat, output_imgs])
 
             #real_img_loss = discriminator.train_on_batch(output_imgs, np.ones(config.batch_size) * 0.9)

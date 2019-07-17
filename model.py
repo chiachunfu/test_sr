@@ -5,7 +5,7 @@ from tensorflow.keras.initializers import RandomUniform
 from tensorflow.keras.models import Sequential, Model
 from layers import resnet_layer, SubpixelConv2D, Conv2DWeightNorm, attention_layer, BicubicUpscale
 from tensorflow.keras import backend as K
-from tensorflow.keras.applications import ResNet50
+from tensorflow.keras.applications import ResNet50, VGG19
 from tensorflow.keras.applications.resnet50 import preprocess_input
 import numpy as np
 
@@ -187,7 +187,7 @@ def sr_discriminator(input_shape, num_filters=32):
 def sr_gan_test(input_shape, gen_model, dis_model,resnet_model,):
     inputs = Input(shape=input_shape)
     gen_out = gen_model(inputs)
-    gen_feat = resnet_model(preprocess_resnet(gen_out))
+    gen_feat = vgg19_model(preprocess_resnet(gen_out))
     #print(gen_model.layers)
     dis_model.trainable=False
 
@@ -202,9 +202,20 @@ def resnet_model(input_shape):
     # Get the vgg network. Extract features from last conv layer
     res = ResNet50(weights="imagenet")
     res.outputs = [res.layers[51].input]
-    print(res.layers[51].input.shape)
+    #print(res.layers[51].input.shape)
     # Create model and compile
     model = Model(inputs=inputs, outputs=res(inputs))
+    model.trainable = False
+    return model
+
+def vgg19_model(input_shape):
+    inputs = Input(shape=input_shape)
+    # Get the vgg network. Extract features from last conv layer
+    vgg = VGG19(weights="imagenet")
+    vgg.outputs = [vgg.layers[54].input]
+    #print(res.layers[51].input.shape)
+    # Create model and compile
+    model = Model(inputs=inputs, outputs=vgg(inputs))
     model.trainable = False
     return model
 
