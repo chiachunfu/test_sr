@@ -235,8 +235,8 @@ def sr_resnet_test(input_shape,scale_ratio,resnet_model):
     #scale_ratio = 2
     num_filters_out = max(64, 3 * scale_ratio**2)
     inputs = Input(shape=input_shape)
-    test_initializer = RandomUniform(minval=-0.005, maxval=0.005,seed=None)
-    #test_initializer = 'he_normal'
+    #test_initializer = RandomUniform(minval=-0.005, maxval=0.005,seed=None)
+    test_initializer = 'he_normal'
     x = Conv2DWeightNorm(num_filters,
                kernel_size=3,
                strides=1,
@@ -313,8 +313,8 @@ def sr_resnet_test(input_shape,scale_ratio,resnet_model):
     if res_scale >= 0:
         up_samp = Lambda(lambda x: x * res_scale)(up_samp)
     outputs = add([up_samp, up_samp_skip])
-    #outputs = up_samp_skip
     gen_feat = resnet_model(preprocess_resnet(outputs))
+    #outputs = up_samp_skip
     # Instantiate model.
     model = Model(inputs=inputs, outputs=[outputs, gen_feat])
     return model
