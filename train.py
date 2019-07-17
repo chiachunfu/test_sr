@@ -7,6 +7,7 @@ import numpy as np
 import tensorflow as tf
 from model import sr_resnet, sr_prosr_rcan,sr_discriminator, sr_gan_test, resnet_model, preprocess_resnet
 import re
+from tensorflow.keras import backend as K
 
 
 configProt = tf.ConfigProto()
@@ -137,17 +138,15 @@ class DataGenerator():
         large_images = np.zeros(
             (batch_size, config.input_width * scale, config.input_height * scale, 3))
         #random.shuffle(input_filenames)
-        #if self.counter + batch_size >= self.total_file_cnt:
-        #    self.counter = 0
-        #    if self.is_train:
-        #        print("reset")
-        #random.shuffle(self.input_filenames)
-        fidx = np.random.randint(len(self.input_filenames),size=config.batch_size)  # augment option
-        #print(len(self.input_filenames))
+        if self.counter + batch_size >= self.total_file_cnt:
+            self.counter = 0
+            if self.is_train:
+                print("reset")
+                random.shuffle(self.input_filenames)
         for i in range(batch_size):
             ttype = random.randint(0, 5) #augment option
             #print(self.counter)
-            img = self.input_filenames[fidx[i]]
+            img = self.input_filenames[self.counter + i]
             #print(i, self.counter, img)
             small_img = Image.open(img)
             if self.is_train:
@@ -167,9 +166,12 @@ class DataGenerator():
 
             large_images[i] = np.array(large_image) / 255.0
         #print(self.counter)
-        #self.counter += batch_size
-        yield (small_images, large_images)
-        #return (small_images, large_images)
+        self.counter += batch_size
+        #yield (small_images, large_images)
+        return (small_images, large_images)
+    def shuffle(self):
+        random.shuffle(self.input_filenames)
+        self.counter = 0
 
 
 def image_generator(batch_size, img_dir):
@@ -262,6 +264,12 @@ def custom_loss():
 
     # Return a function
     return loss
+
+def lr_scheduler(lr, epoch, decay_freq=50, decay_factor=0.5):
+    pow = epoch // decay_freq
+    lr_new = lr * (decay_factor ** pow)
+    return max(1e-7, lr_new)
+
 #for l in model.layers:
     #print(type(l))
 val_generator = image_generator(config.batch_size, val_dir)
@@ -290,28 +298,27 @@ if 0:
 else:
     #all_train_input_imgs, all_train_output_imgs = get_all_imgs(train_dir)
     all_val_input_imgs, all_val_output_imgs = get_all_imgs(val_dir)
+    gan_lr = 0.001
+    disc_lr = 0.01
     if 1:
         res = resnet_model(input_shape=(config.output_width, config.output_height, 3))
         res.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
                               , loss='mse'
-                              , metrics=['accuracy'])
-
+                    )
     discriminator = sr_discriminator(input_shape=(config.output_width, config.output_height, 3))
-    discriminator.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
+    discriminator.compile(optimizer=tf.keras.optimizers.Adam(lr=disc_lr, decay=0.9)
                           , loss='binary_crossentropy'
-                          , metrics=['accuracy'])
-
+                          )
     generator = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
     generator.compile(optimizer='adam', loss='mae', metrics=[perceptual_distance, psnr, psnr_v2])
-
 
 
 
     gan = sr_gan_test((config.input_width, config.input_height, 3), generator, discriminator,res)
     gan.compile(
         loss=['binary_crossentropy', 'mse', 'mae'],
-        loss_weights=[1e-3, 0.2, 0.8],
-        optimizer=tf.keras.optimizers.Adam(lr=0.0002,decay=0.9)
+        loss_weights=[1e-3, 0.1, 0.9],
+        optimizer=tf.keras.optimizers.Adam(lr=gan_lr,decay=0.9)
     )
     ## train generator for a couple of epochs
     if 0:
@@ -333,27 +340,30 @@ else:
     all_gen_dis_loss = []
     itr_for_disc = 1
     for itr in range(config.num_epochs * config.steps_per_epoch):
-        input_imgs, output_imgs = next(train_generator.batch_gen(config.batch_size))
+        if (itr + 1) % config.steps_per_epoch == 0:
+            K.set_value(gan.optimizer.lr, lr_scheduler(gan_lr, (itr+1) // config.steps_per_epoch))
+            K.set_value(discriminator.optimizer.lr, lr_scheduler(disc_lr, (itr+1) // config.steps_per_epoch))
+
+        input_imgs, output_imgs = (train_generator.batch_gen(config.batch_size))
         gen_imgs = generator.predict(input_imgs)
-        #discriminator.trainable = True
         real_img_loss = discriminator.train_on_batch(output_imgs, np.ones(config.batch_size)*0.9)
         fake_img_loss = discriminator.train_on_batch(gen_imgs, np.ones(config.batch_size)*0.1)
         dis_loss = 0.5 * np.add(real_img_loss,fake_img_loss)
         #print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss)
         #discriminator.trainable = False
-        if itr > itr_for_disc:
-            if itr == itr_for_disc+1:
+        if itr > itr_for_disc or 1:
+            if itr == itr_for_disc+1 and 0:
                 discriminator.save_weights("trained_discriminator_{}X_epoch{}.h5".format(scale, 0))
                 print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss, dis_loss)
 
-            input_imgs, output_imgs = next(train_generator.batch_gen(config.batch_size))
+            #input_imgs, output_imgs = next(train_generator.batch_gen(config.batch_size))
 
             real_feat = res.predict(preprocess_resnet(output_imgs))
             gen_loss = gan.train_on_batch(input_imgs,[np.ones(config.batch_size), real_feat, output_imgs])
 
             #real_img_loss = discriminator.train_on_batch(output_imgs, np.ones(config.batch_size) * 0.9)
             gen_imgs = generator.predict(input_imgs)
-            fake_img_loss = discriminator.evaluate(gen_imgs, np.ones(config.batch_size)*0.9)
+            #fake_img_loss = discriminator.evaluate(gen_imgs, np.ones(config.batch_size)*0.9)
 
             #print("gan loss: ", gen_loss)
             all_dis_loss.append(dis_loss[0])
@@ -370,11 +380,11 @@ else:
                 all_gen_dis_loss = []
 
             if (itr+1) % 512 == 0 or (itr + 1) < itr_for_disc+2:
-                results = generator.evaluate(input_imgs, output_imgs, config.batch_size)
+                #results = generator.evaluate(input_imgs, output_imgs, config.batch_size)
 
                 #print("train performance", generator.evaluate(all_train_input_imgs, all_train_output_imgs, config.batch_size))
                 results = generator.evaluate(all_val_input_imgs, all_val_output_imgs, config.batch_size)
-                print("val performance", results)
+                #print("val performance", results)
                 #LogImage(generator, in_sample_images, out_sample_images)
                 #wandb.log(results)
                 if (itr + 1) % (3 * 1000) == 0:
@@ -388,3 +398,5 @@ else:
             #results = discriminator.evaluate(gen_imgs, output_imgs, config.batch_size)
             #print("val performance", results)
 
+        if (itr + 1) % config.steps_per_epoch == 0:
+            train_generator.shuffle()
