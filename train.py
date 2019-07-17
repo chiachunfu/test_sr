@@ -387,7 +387,7 @@ elif 1:
     model.compile(optimizer='adam', loss=[custom_loss(), 'mse'],loss_weights=[0.94, 0.06] ,
                   metrics=[perceptual_distance, psnr, psnr_v2])
 
-    val_generator = image_generator_test(config.batch_size, val_dir)
+    val_generator = image_generator(config.batch_size, val_dir)
     train_generator = image_generator(config.batch_size, train_dir)
     #in_sample_images, out_sample_images = next(val_generator)
     all_val_input_imgs, all_val_output_imgs = get_all_imgs(val_dir)
@@ -407,7 +407,7 @@ elif 1:
             # print("val performance", results)
             # LogImage(generator, in_sample_images, out_sample_images)
             # wandb.log(results)
-            
+
 
 else:
     #all_train_input_imgs, all_train_output_imgs = get_all_imgs(train_dir)
