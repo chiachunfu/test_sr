@@ -187,7 +187,7 @@ def sr_discriminator(input_shape, num_filters=32):
 def sr_gan_test(input_shape, gen_model, dis_model,resnet_model,):
     inputs = Input(shape=input_shape)
     gen_out = gen_model(inputs)
-    gen_feat = vgg19_model(preprocess_resnet(gen_out))
+    gen_feat = resnet_model(preprocess_resnet(gen_out))
     #print(gen_model.layers)
     dis_model.trainable=False
 
@@ -225,3 +225,97 @@ def preprocess_resnet(x):
         return preprocess_input((x)*255.)
     else:
         return Lambda(lambda x: preprocess_input(x * 255.0))(x)
+
+
+def sr_resnet_test(input_shape,scale_ratio):
+    #inputs = Input(shape=input_shape)
+    # v2 performs Conv2D with BN-ReLU on input before splitting into 2 paths
+    num_filters = 64
+    reg_scale = 0
+    #scale_ratio = 2
+    num_filters_out = max(64, 3 * scale_ratio**2)
+    inputs = Input(shape=input_shape)
+    test_initializer = RandomUniform(minval=-0.005, maxval=0.005,seed=None)
+    #test_initializer = 'he_normal'
+    x = Conv2DWeightNorm(num_filters,
+               kernel_size=3,
+               strides=1,
+               padding='same',
+               kernel_initializer=test_initializer,
+               kernel_regularizer=l2(reg_scale)
+               )(inputs)
+    num_res_layer = 8
+
+    def res_blocks(res_in, num_chans):
+        x = resnet_layer(inputs=res_in,
+                         num_filters=num_chans,
+                         kernel_initializer=test_initializer
+                         )
+        return x
+
+    def res_chan_attention_blocks(res_in, num_chans, reduction_ratio):
+        x = resnet_layer(inputs=res_in,
+                         num_filters=num_chans,
+                         kernel_initializer=test_initializer
+                         )
+        x = attention_layer(x, 4)
+        return x
+
+    for l in range(num_res_layer):
+
+        #x = res_blocks(x,num_filters)
+        x = res_chan_attention_blocks(x,num_filters,4)
+
+    #print(type(x))
+    num_filters2 = 256
+
+    x = Conv2DWeightNorm(256,
+                         kernel_size=1,
+                         strides=1,
+                         padding='same',
+                         kernel_initializer=test_initializer,
+                         kernel_regularizer=l2(reg_scale)
+                         )(x)
+    for l in range(0):
+
+        #x = res_blocks(x,num_filters)
+        x = res_chan_attention_blocks(x,num_filters2,16)
+
+
+    pixelshuf_in = Conv2DWeightNorm(num_filters_out,
+                         kernel_size=3,
+                         strides=1,
+                         padding='same',
+                                    kernel_initializer=test_initializer,
+                                    kernel_regularizer=l2(reg_scale)
+                         )(x)
+
+    up_samp = SubpixelConv2D([None, input_shape[0], input_shape[1], num_filters_out],
+                             scale=scale_ratio
+                             )(pixelshuf_in)
+
+    #res_out2 = layers.add([res_in2, x])
+    if 0:
+        pixelshuf_skip_in = Conv2DWeightNorm(num_filters_out,
+                                   kernel_size=3,
+                                   strides=1,
+                                   padding='same',
+                                             kernel_initializer=test_initializer,
+                                             kernel_regularizer=l2(reg_scale)
+                                   )(inputs)
+
+        up_samp_skip = SubpixelConv2D([None, input_shape[0], input_shape[1], num_filters_out],
+                                 scale=scale_ratio
+                                      )(pixelshuf_skip_in)
+    else:
+        up_samp_skip = BicubicUpscale(8)(inputs)
+    res_scale = 0.2
+    if res_scale >= 0:
+        up_samp = Lambda(lambda x: x * res_scale)(up_samp)
+    outputs = add([up_samp, up_samp_skip])
+    #outputs = up_samp_skip
+    gen_feat = resnet_model(preprocess_resnet(outputs))
+    # Instantiate model.
+    model = Model(inputs=inputs, outputs=[outputs, gen_feat])
+    return model
+

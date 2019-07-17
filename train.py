@@ -5,7 +5,7 @@ import os
 from PIL import Image
 import numpy as np
 import tensorflow as tf
-from model import sr_resnet, sr_prosr_rcan,sr_discriminator, sr_gan_test, resnet_model, preprocess_resnet, vgg19_model
+from model import sr_resnet, sr_prosr_rcan,sr_discriminator, sr_gan_test, resnet_model, preprocess_resnet, vgg19_model, sr_resnet_test
 import re
 from tensorflow.keras import backend as K
 
@@ -119,6 +119,57 @@ def train_image_generator(batch_size, img_dir):
         yield (small_images, large_images)
         counter += batch_size
 
+def train_image_generator_test(batch_size, img_dir, model):
+    """A generator that returns small images and large images.  DO NOT ALTER the validation set"""
+    input_filenames = glob.glob(img_dir + "/*-in.jpg")
+    counter = 0
+    while True:
+        small_images = np.zeros(
+            (batch_size, config.input_width, config.input_height, 3))
+        large_images = np.zeros(
+            (batch_size, config.output_width, config.output_height, 3))
+        large_images = np.zeros(
+            (batch_size, config.input_width*scale, config.input_height*scale, 3))
+        random.shuffle(input_filenames)
+        if counter+batch_size >= len(input_filenames):
+            counter = 0
+        #carnation_cnt = 0
+        carnation_check = 1
+        while carnation_check:
+            carnation_cnt = 0
+            for i in range(batch_size):
+                f = input_filenames[counter+i]
+                if re.search('-carnation',f):
+                    carnation_cnt += 1
+            if carnation_cnt >= int(batch_size / 4):
+                temp = input_filenames[counter:len(input_filenames)]
+                random.shuffle(temp)
+                input_filenames[counter:len(input_filenames)] = temp
+            else:
+                carnation_check = 0
+        for i in range(batch_size):
+            type = random.randint(0, 5) #augment option
+            img = input_filenames[counter + i]
+            #print(img)
+            small_img = Image.open(img)
+            small_img = image_transform(small_img, type)
+            small_images[i] = np.array(small_img) / 255.0
+            img = Image.open(img.replace("-in.jpg", "-out.jpg"))
+            if 1:
+                if 'P' in img.mode:  # check if image is a palette type
+                    img = img.convert("RGB")  # convert it to RGB
+                    img = img.resize((config.input_width*scale, config.input_height*scale), Image.ANTIALIAS)  # resize it
+                    large_image = img.convert("P", dither=Image.NONE, palette=Image.ADAPTIVE)
+                    # convert back to palette
+                else:
+                    large_image = img.resize((config.input_width*scale, config.input_height*scale), Image.ANTIALIAS)  # regular resize
+            large_image = image_transform(large_image, type)
+
+            large_images[i] = np.array(large_image) / 255.0
+        feat = model.predict(preprocess_resnet(large_images))
+        yield (small_images, large_images, feat)
+        counter += batch_size
+
 
 class DataGenerator():
     def __init__(self, img_dir, is_train=False):
@@ -202,6 +253,35 @@ def image_generator(batch_size, img_dir):
         counter += batch_size
 
 
+def image_generator_test(batch_size, img_dir, model):
+    """A generator that returns small images and large images.  DO NOT ALTER the validation set"""
+    input_filenames = glob.glob(img_dir + "/*-in.jpg")
+    counter = 0
+    while True:
+        small_images = np.zeros(
+            (batch_size, config.input_width, config.input_height, 3))
+        large_images = np.zeros(
+            (batch_size, config.output_width, config.output_height, 3))
+        large_images = np.zeros(
+            (batch_size, config.input_width*scale, config.input_height*scale, 3))
+        random.shuffle(input_filenames)
+        if counter+batch_size >= len(input_filenames):
+            counter = 0
+
+        for i in range(batch_size):
+            type = random.randint(0, 5) #augment option
+            img = input_filenames[counter + i]
+            #print(img)
+            small_img = Image.open(img)
+            small_images[i] = np.array(small_img) / 255.0
+            large_image = Image.open(img.replace("-in.jpg", "-out.jpg"))
+
+            large_images[i] = np.array(large_image) / 255.0
+        feat = model.predict(preprocess_resnet(large_images))
+        yield (small_images, large_images, feat)
+        counter += batch_size
+
+
 def perceptual_distance(y_true, y_pred):
     """Calculate perceptual distance, DO NOT ALTER"""
     y_true *= 255
@@ -280,7 +360,7 @@ if 0:
     opt = tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
 
     # DONT ALTER metrics=[perceptual_distance]
-    model.compile(optimizer='adam', loss=custom_loss(),
+    model.compile(optimizer='adam', loss=custom_loss(),l
                   metrics=[perceptual_distance, psnr, psnr_v2])
 
     val_generator = image_generator(config.batch_size, val_dir)
@@ -294,7 +374,29 @@ if 0:
                             ImageLogger(), WandbCallback()],
                         validation_steps=config.val_steps_per_epoch,
                         validation_data=val_generator)
+elif 1:
+    model = sr_resnet_test(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
+    res = resnet_model(input_shape=(config.output_width, config.output_height, 3))
+    res.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
+                , loss='mse'
+                )
+    opt = tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
 
+    # DONT ALTER metrics=[perceptual_distance]
+    model.compile(optimizer='adam', loss=[custom_loss(), 'mse'],loss_weights=[0.94, 0.06] ,
+                  metrics=[perceptual_distance, psnr, psnr_v2])
+
+    val_generator = image_generator_test(config.batch_size, val_dir, res)
+    #in_sample_images, out_sample_images = next(val_generator)
+
+
+
+    model.fit_generator(train_image_generator_test(config.batch_size, train_dir,res),
+                        steps_per_epoch=config.steps_per_epoch,
+                        epochs=config.num_epochs, callbacks=[
+                            ImageLogger(), WandbCallback()],
+                        validation_steps=config.val_steps_per_epoch,
+                        validation_data=val_generator)
 else:
     #all_train_input_imgs, all_train_output_imgs = get_all_imgs(train_dir)
     all_val_input_imgs, all_val_output_imgs = get_all_imgs(val_dir)
@@ -305,10 +407,10 @@ else:
         res.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
                               , loss='mse'
                     )
-        vgg = vgg19_model(input_shape=(config.output_width, config.output_height, 3))
-        vgg.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
-                    , loss='mse'
-                    )
+        #vgg = vgg19_model(input_shape=(config.output_width, config.output_height, 3))
+        #vgg.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
+        #            , loss='mse'
+        #            )
     discriminator = sr_discriminator(input_shape=(config.output_width, config.output_height, 3))
     discriminator.compile(optimizer=tf.keras.optimizers.Adam(lr=disc_lr, decay=0.9)
                           , loss='binary_crossentropy'
@@ -328,7 +430,7 @@ else:
     if 0:
         generator.fit_generator(train_image_generator(config.batch_size, train_dir),
                                 steps_per_epoch=config.steps_per_epoch,
-                                epochs=5, callbacks=[
+                                epochs=2000, callbacks=[
                 ImageLogger(), WandbCallback()],
                                 validation_steps=config.val_steps_per_epoch,
                                 validation_data=val_generator)
@@ -362,7 +464,7 @@ else:
 
             #input_imgs, output_imgs = next(train_generator.batch_gen(config.batch_size))
 
-            real_feat = vgg.predict(preprocess_resnet(output_imgs))
+            real_feat = res.predict(preprocess_resnet(output_imgs))
             gen_loss = gan.train_on_batch(input_imgs,[np.ones(config.batch_size), real_feat, output_imgs])
 
             #real_img_loss = discriminator.train_on_batch(output_imgs, np.ones(config.batch_size) * 0.9)
