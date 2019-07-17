@@ -349,7 +349,7 @@ else:
         real_img_loss = discriminator.train_on_batch(output_imgs, np.ones(config.batch_size)*0.9)
         fake_img_loss = discriminator.train_on_batch(gen_imgs, np.ones(config.batch_size)*0.1)
         dis_loss = 0.5 * np.add(real_img_loss,fake_img_loss)
-        #print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss)
+        #print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss, dis_loss)
         #discriminator.trainable = False
         if itr > itr_for_disc or 1:
             if itr == itr_for_disc+1 and 0:
@@ -366,7 +366,7 @@ else:
             #fake_img_loss = discriminator.evaluate(gen_imgs, np.ones(config.batch_size)*0.9)
 
             #print("gan loss: ", gen_loss)
-            all_dis_loss.append(dis_loss[0])
+            all_dis_loss.append(dis_loss)
             all_gen_loss.append(gen_loss[0])
             all_gen_mae_loss.append(gen_loss[2])
             all_gen_dis_loss.append(gen_loss[1])
