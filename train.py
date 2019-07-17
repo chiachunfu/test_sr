@@ -403,16 +403,19 @@ elif 0:
 
 
 elif 1:
-    res = resnet_model(input_shape=(config.output_width, config.output_height, 3))
-    res.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
-                , loss='mse'
-                )
-    model = sr_resnet_test(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale,resnet_model=res)
+    #res = resnet_model(input_shape=(config.output_width, config.output_height, 3))
+    #res.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
+    #            , loss='mse'
+    #            )
+    #model = sr_resnet_test(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale,resnet_model=res)
+    model = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
 
     opt = tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
 
     # DONT ALTER metrics=[perceptual_distance]
-    model.compile(optimizer='adam', loss=[custom_loss(), 'mse'],loss_weights=[0.94, 0.06] ,
+    #model.compile(optimizer='adam', loss=[custom_loss(), 'mse'], loss_weights=[0.94, 0.06],
+    #              metrics=[perceptual_distance, psnr, psnr_v2])
+    model.compile(optimizer='adam', loss=custom_loss(),
                   metrics=[perceptual_distance, psnr, psnr_v2])
 
     val_generator = image_generator(config.batch_size, val_dir)
@@ -424,20 +427,21 @@ elif 1:
 
     for itr in range(2000000):
         input_imgs, output_imgs = next(train_generator)
-        real_feat = res.predict(preprocess_resnet(output_imgs))
+        #real_feat = res.predict(preprocess_resnet(output_imgs))
 
-        gen_loss = model.train_on_batch(input_imgs, [output_imgs , real_feat ])
-        all_pixel_l1_loss.append(gen_loss[0])
-        all_content_loss.append(gen_loss[1])
-        if (itr + 1) % 128 == 0:
+        gen_loss = model.train_on_batch(input_imgs, output_imgs  )
+        all_pixel_l1_loss.append(gen_loss)
+        #all_content_loss.append(gen_loss[1])
+        if (itr + 1) % 32 == 0:
             # print("fake_img_loss: ", fake_img_loss)
 
-            print(itr, np.mean(np.array(all_pixel_l1_loss)), np.mean(np.array(all_content_loss)))
+            #print(itr, np.mean(np.array(all_pixel_l1_loss)), np.mean(np.array(all_content_loss)))
+            print(itr, np.mean(np.array(all_pixel_l1_loss)))
             all_pixel_l1_loss = []
-            all_content_loss = []
+            #all_content_loss = []
 
 
-        if (itr + 1) % 512 == 0:
+        if (itr + 1) % 512 == 0 and 0:
             # results = generator.evaluate(input_imgs, output_imgs, config.batch_size)
 
             # print("train performance", generator.evaluate(all_train_input_imgs, all_train_output_imgs, config.batch_size))
