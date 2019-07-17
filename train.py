@@ -375,11 +375,12 @@ if 0:
                         validation_steps=config.val_steps_per_epoch,
                         validation_data=val_generator)
 elif 1:
-    model = sr_resnet_test(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
     res = resnet_model(input_shape=(config.output_width, config.output_height, 3))
     res.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
                 , loss='mse'
                 )
+    model = sr_resnet_test(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale,res)
+
     opt = tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
 
     # DONT ALTER metrics=[perceptual_distance]
