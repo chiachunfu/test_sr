@@ -17,8 +17,8 @@ def sr_resnet(input_shape,scale_ratio):
     #scale_ratio = 2
     num_filters_out = max(64, 3 * scale_ratio**2)
     inputs = Input(shape=input_shape)
-    test_initializer = RandomUniform(minval=-0.005, maxval=0.005,seed=None)
-    #test_initializer = 'he_normal'
+    #test_initializer = RandomUniform(minval=-0.005, maxval=0.005,seed=None)
+    test_initializer = 'he_normal'
     x = Conv2DWeightNorm(num_filters,
                kernel_size=3,
                strides=1,

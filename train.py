@@ -374,6 +374,34 @@ if 0:
                             ImageLogger(), WandbCallback()],
                         validation_steps=config.val_steps_per_epoch,
                         validation_data=val_generator)
+elif 0:
+    model = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
+
+    opt = tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
+
+    # DONT ALTER metrics=[perceptual_distance]
+    model.compile(optimizer='adam', loss=custom_loss(),
+                  metrics=[perceptual_distance, psnr, psnr_v2])
+
+    val_generator = image_generator(config.batch_size, val_dir)
+    in_sample_images, out_sample_images = next(val_generator)
+
+
+
+    model.fit_generator(train_image_generator(config.batch_size, train_dir),
+                        steps_per_epoch=config.steps_per_epoch,
+                        epochs=1, callbacks=[
+                            ImageLogger(), WandbCallback()],
+                        validation_steps=config.val_steps_per_epoch,
+                        validation_data=val_generator)
+
+    res = resnet_model(input_shape=(config.output_width, config.output_height, 3))
+    res.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
+                , loss='mse'
+                )
+
+
+
 elif 1:
     res = resnet_model(input_shape=(config.output_width, config.output_height, 3))
     res.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
@@ -391,19 +419,33 @@ elif 1:
     train_generator = image_generator(config.batch_size, train_dir)
     #in_sample_images, out_sample_images = next(val_generator)
     all_val_input_imgs, all_val_output_imgs = get_all_imgs(val_dir)
+    all_content_loss = []
+    all_pixel_l1_loss = []
 
     for itr in range(2000000):
         input_imgs, output_imgs = next(train_generator)
         real_feat = res.predict(preprocess_resnet(output_imgs))
 
         gen_loss = model.train_on_batch(input_imgs, [output_imgs , real_feat ])
+        all_pixel_l1_loss.append(gen_loss[0])
+        all_content_loss.append(gen_loss[1])
+        if (itr + 1) % 128 == 0:
+            # print("fake_img_loss: ", fake_img_loss)
+
+            print(itr, np.mean(np.array(all_pixel_l1_loss)), np.mean(np.array(all_content_loss)))
+            all_pixel_l1_loss = []
+            all_content_loss = []
+
 
         if (itr + 1) % 512 == 0:
             # results = generator.evaluate(input_imgs, output_imgs, config.batch_size)
 
             # print("train performance", generator.evaluate(all_train_input_imgs, all_train_output_imgs, config.batch_size))
-            #for _ in range(20):
-            model.evaluate(all_val_input_imgs, all_val_output_imgs, config.batch_size)
+            for _ in range(20):
+                val_input_imgs, val_output_imgs = next(val_generator)
+                val_real_feat = res.predict(preprocess_resnet(val_output_imgs))
+
+                model.evaluate(val_input_imgs, [val_output_imgs, val_real_feat], config.batch_size)
             # print("val performance", results)
             # LogImage(generator, in_sample_images, out_sample_images)
             # wandb.log(results)
