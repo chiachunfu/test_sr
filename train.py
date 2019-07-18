@@ -350,6 +350,21 @@ def lr_scheduler(lr, epoch, decay_freq=50, decay_factor=0.5):
     lr_new = lr * (decay_factor ** pow)
     return max(1e-7, lr_new)
 
+
+# Gradients of output wrt model weights
+def get_gradients(model, weights_list, input_imgs):
+    gradients = K.gradients(model.output, weights_list)
+    #print(gradients)
+    # Wrap the model input tensor and the gradient tensors in a callable function
+    f = K.function([model.input], gradients)
+
+    ## Random input image
+    #x = np.random.rand(1,100,100,3)
+
+    # Call the function to get the gradients of the model output produced by this image, wrt the model weights
+    return f([input_imgs])
+
+
 #for l in model.layers:
     #print(type(l))
 val_generator = image_generator(config.batch_size, val_dir)
@@ -402,7 +417,7 @@ elif 0:
 
 
 
-elif 1:
+elif 0:
     res = resnet_model(input_shape=(config.output_width, config.output_height, 3))
     res.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
                 , loss='mse'
@@ -464,6 +479,7 @@ elif 1:
 else:
     #all_train_input_imgs, all_train_output_imgs = get_all_imgs(train_dir)
     all_val_input_imgs, all_val_output_imgs = get_all_imgs(val_dir)
+    print(len(all_val_input_imgs))
     gan_lr = 0.001
     disc_lr = 0.002
     if 1:
@@ -502,11 +518,18 @@ else:
 
     #print(gan.summary())
     #print(discriminator.summary())
-    train_generator = DataGenerator(train_dir,is_train=True)
-    val_generator = DataGenerator(val_dir,is_train=False)
+    disc_weights_list = discriminator.trainable_weights
+    gen_weights_list = generator.trainable_weights
+    gan_weights_list = gan.trainable_weights
+
+    train_generator = train_image_generator(config.batch_size, train_dir)
+    val_generator = image_generator(config.batch_size, val_dir)
     all_dis_loss = []
+    all_real_loss = []
+    all_fake_loss = []
     all_gen_loss = []
     all_gen_mae_loss = []
+    all_gen_feat_loss = []
     all_gen_dis_loss = []
     itr_for_disc = 1
     for itr in range(config.num_epochs * config.steps_per_epoch):
@@ -514,12 +537,13 @@ else:
             K.set_value(gan.optimizer.lr, lr_scheduler(gan_lr, (itr+1) // config.steps_per_epoch))
             K.set_value(discriminator.optimizer.lr, lr_scheduler(disc_lr, (itr+1) // config.steps_per_epoch))
 
-        input_imgs, output_imgs = (train_generator.batch_gen(config.batch_size))
+        input_imgs, output_imgs = next(train_generator)
         gen_imgs = generator.predict(input_imgs)
         real_img_loss = discriminator.train_on_batch(output_imgs, np.ones(config.batch_size)*0.9)
         fake_img_loss = discriminator.train_on_batch(gen_imgs, np.ones(config.batch_size)*0.1)
         dis_loss = 0.5 * np.add(real_img_loss,fake_img_loss)
-        #print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss, dis_loss)
+        print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss, dis_loss)
+
         #discriminator.trainable = False
         if itr > itr_for_disc or 1:
             if itr == itr_for_disc+1 and 0:
@@ -535,38 +559,49 @@ else:
             gen_imgs = generator.predict(input_imgs)
             #fake_img_loss = discriminator.evaluate(gen_imgs, np.ones(config.batch_size)*0.9)
 
-            #print("gan loss: ", gen_loss)
+            print("gan loss: ", gen_loss)
             all_dis_loss.append(dis_loss)
+            all_real_loss.append(real_img_loss)
+            all_fake_loss.append(fake_img_loss)
             all_gen_loss.append(gen_loss[0])
-            all_gen_mae_loss.append(gen_loss[2])
+            all_gen_mae_loss.append(gen_loss[3])
+            all_gen_feat_loss.append(gen_loss[2])
             all_gen_dis_loss.append(gen_loss[1])
-            if (itr+1) % 32 == 0:
+
+            if (itr+1) % 128 == 0:
                 #print("fake_img_loss: ", fake_img_loss)
 
-                print(itr, np.mean(np.array(all_dis_loss)), np.mean(np.array(all_gen_loss)), np.mean(np.array(all_gen_mae_loss)), np.mean(np.array(all_gen_dis_loss)))
-                all_dis_loss = []
-                all_gen_loss = []
-                all_gen_mae_loss = []
-                all_gen_dis_loss = []
+                print(itr, np.mean(np.array(all_dis_loss)), np.mean(np.array(all_gen_loss)), np.mean(np.array(all_gen_mae_loss)), np.mean(np.array(all_gen_feat_loss)), np.mean(np.array(all_gen_dis_loss)))
+
 
             if (itr+1) % 512 == 0:
                 #results = generator.evaluate(input_imgs, output_imgs, config.batch_size)
-
+                test = np.array(get_gradients(gan, gan_weights_list, input_imgs))
+                #print(itr, np.mean(test[1]), np.absolute(np.mean(test[-1])))
                 #print("train performance", generator.evaluate(all_train_input_imgs, all_train_output_imgs, config.batch_size))
-                results = generator.evaluate(all_val_input_imgs, all_val_output_imgs, config.batch_size)
+                #results = generator.evaluate(all_val_input_imgs, all_val_output_imgs, config.batch_size)
+                results = generator.evaluate(all_val_input_imgs, all_val_output_imgs)
                 #print("val performance", results)
-                #LogImage(generator, in_sample_images, out_sample_images)
+                LogImage(generator, in_sample_images, out_sample_images)
+                wandb.log({"real img loss": np.mean(np.array(all_real_loss)),
+                           "fake img loss": np.mean(np.array(all_fake_loss)),
+                           "first layer gradients": np.absolute(np.mean(test[0])),
+                           "last layer gradients": np.absolute(np.mean(test[-1])),
+                           "pixel l1 loss": np.mean(np.array(all_gen_mae_loss)),
+                           "content l2 loss": np.mean(np.array(all_gen_feat_loss)),
+                           "discriminator crossentropy loss": np.mean(np.array(all_gen_dis_loss))
+
+                           })
+                all_dis_loss = []
+                all_gen_loss = []
+                all_gen_mae_loss = []
+                all_gen_feat_loss = []
+                all_gen_dis_loss = []
+                all_real_loss = []
+                all_fake_loss = []
                 #wandb.log(results)
                 if (itr + 1) % (3 * 1000) == 0:
                     """Save the generator and discriminator networks"""
                     generator.save_weights("trained_new_generator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
                     discriminator.save_weights("trained_new_discriminator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
 
-        elif (itr + 1) % 100 == 0:
-            pass
-            #print(itr, "real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss)
-            #results = discriminator.evaluate(gen_imgs, output_imgs, config.batch_size)
-            #print("val performance", results)
-
-        if (itr + 1) % config.steps_per_epoch == 0:
-            train_generator.shuffle()
