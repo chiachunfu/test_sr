@@ -443,7 +443,7 @@ elif 1:
             #all_content_loss = []
 
 
-        if (itr + 1) % 512 == 0 and 0:
+        if (itr + 1) % 512 == 0 and 1:
             # results = generator.evaluate(input_imgs, output_imgs, config.batch_size)
 
             # print("train performance", generator.evaluate(all_train_input_imgs, all_train_output_imgs, config.batch_size))
