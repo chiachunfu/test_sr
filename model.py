@@ -319,3 +319,11 @@ def sr_resnet_test(input_shape,scale_ratio,resnet_model):
     model = Model(inputs=inputs, outputs=[outputs, gen_feat])
     return model
 
+def sr_combine(input_shape, gen_model, resnet_model):
+    inputs = Input(shape=input_shape)
+    gen_out = gen_model(inputs)
+    gen_feat = resnet_model(preprocess_resnet(gen_out))
+
+    # Instantiate model.
+    model = Model(inputs=inputs, outputs=[ gen_out, gen_feat])
+    return model

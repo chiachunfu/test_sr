@@ -5,7 +5,7 @@ import os
 from PIL import Image
 import numpy as np
 import tensorflow as tf
-from model import sr_resnet, sr_prosr_rcan,sr_discriminator, sr_gan_test, resnet_model, preprocess_resnet, vgg19_model, sr_resnet_test
+from model import sr_resnet, sr_prosr_rcan,sr_discriminator, sr_gan_test, resnet_model, preprocess_resnet, vgg19_model, sr_resnet_test, sr_combine
 import re
 from tensorflow.keras import backend as K
 
@@ -407,14 +407,17 @@ elif 1:
     res.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
                 , loss='mse'
                 )
-    model = sr_resnet_test(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale,resnet_model=res)
+    model = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
     #model = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
 
-    opt = tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
+    model.compile(optimizer='adam', loss=custom_loss(),
+                  metrics=[perceptual_distance, psnr, psnr_v2])
 
+    opt = tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
+    combine = sr_combine((config.input_width, config.input_height, 3),model, res)
     # DONT ALTER metrics=[perceptual_distance]
-    model.compile(optimizer='adam', loss=['mae', 'mse'], loss_weights=[0.94, 0.06])
-                  #,metrics=[perceptual_distance, psnr, psnr_v2])
+    combine.compile(optimizer='adam', loss=['mae', 'mse'], loss_weights=[0.94, 0.06]
+                  ,metrics=[perceptual_distance, psnr, psnr_v2])
     #model.compile(optimizer='adam', loss=custom_loss(),
     #              metrics=[perceptual_distance, psnr, psnr_v2])
 
@@ -430,12 +433,12 @@ elif 1:
         input_imgs, output_imgs = next(train_generator)
         real_feat = res.predict(output_imgs)
         #gen_loss = model.train_on_batch(input_imgs, output_imgs  )
-        gen_loss = model.train_on_batch(input_imgs, [output_imgs, real_feat]  )
+        gen_loss = combine.train_on_batch(input_imgs, [output_imgs, real_feat]  )
         all_pixel_l1_loss.append(gen_loss)
         #all_content_loss.append(gen_loss[1])
         if (itr + 1) % 128 == 0:
             # print("fake_img_loss: ", fake_img_loss)
-            print(gen_loss)
+            print(itr, gen_loss)
 
             #print(itr, np.mean(np.array(all_pixel_l1_loss)), np.mean(np.array(all_content_loss)))
             #print(itr, np.mean(np.array(all_pixel_l1_loss)))
@@ -447,11 +450,12 @@ elif 1:
             # results = generator.evaluate(input_imgs, output_imgs, config.batch_size)
 
             # print("train performance", generator.evaluate(all_train_input_imgs, all_train_output_imgs, config.batch_size))
-            for _ in range(20):
-                val_input_imgs, val_output_imgs = next(val_generator)
-                val_real_feat = res.predict(preprocess_resnet(val_output_imgs))
+            #for _ in range(20):
+                #val_input_imgs, val_output_imgs = next(val_generator)
+                #val_real_feat = res.predict(preprocess_resnet(val_output_imgs))
 
-                model.evaluate(val_input_imgs, [val_output_imgs, val_real_feat], config.batch_size)
+                #model.evaluate(val_input_imgs, [val_output_imgs, val_real_feat], config.batch_size)
+            model.evaluate(all_val_input_imgs, all_val_output_imgs, config.batch_size)
             # print("val performance", results)
             # LogImage(generator, in_sample_images, out_sample_images)
             # wandb.log(results)
