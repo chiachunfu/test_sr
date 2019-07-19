@@ -364,6 +364,14 @@ def get_gradients(model, weights_list, input_imgs):
     # Call the function to get the gradients of the model output produced by this image, wrt the model weights
     return f([input_imgs])
 
+def get_weight_grad(model, inputs, outputs):
+    """ Gets gradient of model for given inputs and outputs for all weights"""
+    grads = model.optimizer.get_gradients(model.total_loss, model.trainable_weights)
+    symb_inputs = (model._feed_inputs + model._feed_targets + model._feed_sample_weights)
+    f = K.function(symb_inputs, grads)
+    x, y, sample_weight = model._standardize_user_data(inputs, outputs)
+    output_grad = f(x + y + sample_weight)
+    return output_grad
 
 #for l in model.layers:
     #print(type(l))
@@ -495,7 +503,7 @@ else:
     discriminator.compile(optimizer=tf.keras.optimizers.Adam(lr=disc_lr, decay=0.9)
                           , loss='binary_crossentropy'
                           )
-    generator = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
+    generator = sr_prosr_rcan(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
     generator.compile(optimizer='adam', loss='mae', metrics=[perceptual_distance, psnr, psnr_v2])
 
 
@@ -542,7 +550,7 @@ else:
         real_img_loss = discriminator.train_on_batch(output_imgs, np.ones(config.batch_size)*0.9)
         fake_img_loss = discriminator.train_on_batch(gen_imgs, np.ones(config.batch_size)*0.1)
         dis_loss = 0.5 * np.add(real_img_loss,fake_img_loss)
-        print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss, dis_loss)
+        #print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss, dis_loss)
 
         #discriminator.trainable = False
         if itr > itr_for_disc or 1:
@@ -559,7 +567,7 @@ else:
             gen_imgs = generator.predict(input_imgs)
             #fake_img_loss = discriminator.evaluate(gen_imgs, np.ones(config.batch_size)*0.9)
 
-            print("gan loss: ", gen_loss)
+            #print("gan loss: ", gen_loss)
             all_dis_loss.append(dis_loss)
             all_real_loss.append(real_img_loss)
             all_fake_loss.append(fake_img_loss)
@@ -576,12 +584,12 @@ else:
 
             if (itr+1) % 512 == 0:
                 #results = generator.evaluate(input_imgs, output_imgs, config.batch_size)
-                test = np.array(get_gradients(gan, gan_weights_list, input_imgs))
-                #print(itr, np.mean(test[1]), np.absolute(np.mean(test[-1])))
+                test = np.array(get_weight_grad(generator, input_imgs, output_imgs))
+                print(itr, np.mean(test[1]), np.absolute(np.mean(test[-1])))
                 #print("train performance", generator.evaluate(all_train_input_imgs, all_train_output_imgs, config.batch_size))
                 #results = generator.evaluate(all_val_input_imgs, all_val_output_imgs, config.batch_size)
                 results = generator.evaluate(all_val_input_imgs, all_val_output_imgs)
-                #print("val performance", results)
+                print("val performance", results)
                 LogImage(generator, in_sample_images, out_sample_images)
                 wandb.log({"real img loss": np.mean(np.array(all_real_loss)),
                            "fake img loss": np.mean(np.array(all_fake_loss)),
@@ -589,7 +597,8 @@ else:
                            "last layer gradients": np.absolute(np.mean(test[-1])),
                            "pixel l1 loss": np.mean(np.array(all_gen_mae_loss)),
                            "content l2 loss": np.mean(np.array(all_gen_feat_loss)),
-                           "discriminator crossentropy loss": np.mean(np.array(all_gen_dis_loss))
+                           "discriminator crossentropy loss": np.mean(np.array(all_gen_dis_loss)),
+                           "val perceptual dist": results[1],
 
                            })
                 all_dis_loss = []
