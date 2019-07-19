@@ -503,7 +503,7 @@ else:
     discriminator.compile(optimizer=tf.keras.optimizers.Adam(lr=disc_lr, decay=0.9)
                           , loss='binary_crossentropy'
                           )
-    generator = sr_prosr_rcan(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
+    generator = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
     generator.compile(optimizer='adam', loss='mae', metrics=[perceptual_distance, psnr, psnr_v2])
 
 

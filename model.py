@@ -77,7 +77,7 @@ def sr_resnet(input_shape,scale_ratio):
                              )(pixelshuf_in)
 
     #res_out2 = layers.add([res_in2, x])
-    if 0:
+    if 1:
         pixelshuf_skip_in = Conv2DWeightNorm(num_filters_out,
                                    kernel_size=3,
                                    strides=1,
