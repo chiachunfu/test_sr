@@ -1,13 +1,14 @@
 
-from tensorflow.keras.layers import Conv2D, BatchNormalization, Activation, Input, add, Lambda, Dense, Flatten, LeakyReLU
-from tensorflow.keras.regularizers import l2
+from tensorflow.keras.layers import Conv2D, BatchNormalization, Activation, Input, add, Lambda, Dense, Flatten, LeakyReLU, UpSampling2D
+from tensorflow.keras.regularizers import l2, l1
 from tensorflow.keras.initializers import RandomUniform
 from tensorflow.keras.models import Sequential, Model
-from layers import resnet_layer, SubpixelConv2D, Conv2DWeightNorm, attention_layer, BicubicUpscale
+from layers import resnet_layer, SubpixelConv2D, Conv2DWeightNorm, attention_layer, BicubicUpscale, icnr_weights, Subpixel
 from tensorflow.keras import backend as K
 from tensorflow.keras.applications import ResNet50, VGG19
 from tensorflow.keras.applications.resnet50 import preprocess_input
 import numpy as np
+import re
 
 def sr_resnet(input_shape,scale_ratio):
     #inputs = Input(shape=input_shape)
@@ -73,7 +74,9 @@ def sr_resnet(input_shape,scale_ratio):
                          )(x)
 
     up_samp = SubpixelConv2D([None, input_shape[0], input_shape[1], num_filters_out],
-                             scale=scale_ratio
+                             scale=scale_ratio,
+                             name='sub_1'
+
                              )(pixelshuf_in)
 
     #res_out2 = layers.add([res_in2, x])
@@ -87,7 +90,8 @@ def sr_resnet(input_shape,scale_ratio):
                                    )(inputs)
 
         up_samp_skip = SubpixelConv2D([None, input_shape[0], input_shape[1], num_filters_out],
-                                 scale=scale_ratio
+                                 scale=scale_ratio,
+                                  name='sub_2'
                                       )(pixelshuf_skip_in)
     else:
         up_samp_skip = BicubicUpscale(8)(inputs)
@@ -148,8 +152,149 @@ def sr_prosr_rcan(input_shape,scale_ratio):
                                         kernel_regularizer=l2(reg_scale)
                                         )(x)
         up_samp = SubpixelConv2D([None, pixelshuf_in.get_shape()[1], pixelshuf_in.get_shape()[2], num_filters_out],
-                                 scale=scale_ratio
+                                 scale=scale_ratio,
+                                 name='subp_'+str(i)
                                  )(pixelshuf_in)
+        #up_samp = Subpixel(3, 3, 2, padding='same')(pixelshuf_in)
+
+        #print(up_samp.get_shape())
+        up_samp_skip = BicubicUpscale(2**(i+1))(inputs)
+
+        x_in = add([up_samp, up_samp_skip], name="out_"+str(i))
+
+    outputs = x_in
+
+    # Instantiate model.
+    model = Model(inputs=inputs, outputs=outputs)
+    for layer in model.layers:
+        if type(layer) == Subpixel:
+            c, b = layer.get_weights()
+            if scale_ratio == 3:
+                w = icnr_weights(scale=3, shape=c.shape)
+            else:
+                w = icnr_weights(scale=2, shape=c.shape)
+            layer.set_weights([w, b])
+    return model
+
+
+def sr_prosr_rcan_test(input_shape,scale_ratio):
+    #inputs = Input(shape=input_shape)
+    # v2 performs Conv2D with BN-ReLU on input before splitting into 2 paths
+    num_filters = 64
+    reg_scale = 0
+    scale_ratio = 2
+    #num_filters_out = max(64, 3 * scale_ratio**2)
+    num_filters_out = 3 * 2**2
+    inputs = Input(shape=input_shape)
+    x_in = inputs
+    for i in range(1):
+        x = Conv2DWeightNorm(num_filters,
+                   kernel_size=3,
+                   strides=1,
+                   padding='same',
+                   kernel_initializer='he_normal',
+                   kernel_regularizer=l2(reg_scale)
+                   )(x_in)
+        num_res_layer = 8
+
+        def res_blocks(res_in, num_chans):
+            x = resnet_layer(inputs=res_in,
+                             num_filters=num_chans
+                             )
+            return x
+
+        def res_chan_attention_blocks(res_in, num_chans, reduction_ratio):
+            x = resnet_layer(inputs=res_in,
+                             num_filters=num_chans
+                             )
+            x = attention_layer(x, 4)
+            return x
+
+        for l in range(num_res_layer):
+
+            #x = res_blocks(x,num_filters)
+            x = res_chan_attention_blocks(x,num_filters,4)
+
+        pixelshuf_in = Conv2DWeightNorm(num_filters_out,
+                                        kernel_size=3,
+                                        strides=1,
+                                        padding='same',
+                                        kernel_initializer='he_normal',
+                                        kernel_regularizer=l2(reg_scale)
+                                        )(x)
+        up_samp = SubpixelConv2D([None, pixelshuf_in.get_shape()[1], pixelshuf_in.get_shape()[2], num_filters_out],
+                                 scale=scale_ratio,
+                                 name='subp_'+str(i)
+                                 )(pixelshuf_in)
+        #up_samp = Subpixel(3, 3, 2, padding='same')(pixelshuf_in)
+
+        #print(up_samp.get_shape())
+        up_samp_skip = BicubicUpscale(2**(i+1))(inputs)
+
+        x_in = add([up_samp, up_samp_skip], name="out_"+str(i))
+
+    outputs = x_in
+
+    # Instantiate model.
+    model = Model(inputs=inputs, outputs=outputs)
+    for layer in model.layers:
+        if type(layer) == Subpixel:
+            c, b = layer.get_weights()
+            if scale_ratio == 3:
+                w = icnr_weights(scale=3, shape=c.shape)
+            else:
+                w = icnr_weights(scale=2, shape=c.shape)
+            layer.set_weights([w, b])
+    return model
+
+def sr_prosr_rcan_upsample(input_shape,scale_ratio):
+    #inputs = Input(shape=input_shape)
+    # v2 performs Conv2D with BN-ReLU on input before splitting into 2 paths
+    num_filters = 64
+    reg_scale = 0
+    scale_ratio = 2
+    #num_filters_out = max(64, 3 * scale_ratio**2)
+    num_filters_out = 3
+    inputs = Input(shape=input_shape)
+    x_in = inputs
+    for i in range(3):
+        x = Conv2DWeightNorm(num_filters,
+                   kernel_size=3,
+                   strides=1,
+                   padding='same',
+                   kernel_initializer='he_normal',
+                   kernel_regularizer=l2(reg_scale)
+                   )(x_in)
+        num_res_layer = 8
+
+        def res_blocks(res_in, num_chans):
+            x = resnet_layer(inputs=res_in,
+                             num_filters=num_chans
+                             )
+            return x
+
+        def res_chan_attention_blocks(res_in, num_chans, reduction_ratio):
+            x = resnet_layer(inputs=res_in,
+                             num_filters=num_chans
+                             )
+            x = attention_layer(x, 4)
+            return x
+
+        for l in range(num_res_layer):
+
+            #x = res_blocks(x,num_filters)
+            x = res_chan_attention_blocks(x,num_filters,4)
+
+        pixelshuf_in = Conv2DWeightNorm(num_filters_out,
+                                        kernel_size=3,
+                                        strides=1,
+                                        padding='same',
+                                        kernel_initializer='he_normal',
+                                        kernel_regularizer=l2(reg_scale)
+                                        )(x)
+        up_samp = UpSampling2D(pixelshuf_in)
+        #up_samp = Subpixel(3, 3, 2, padding='same')(pixelshuf_in)
+
         #print(up_samp.get_shape())
         up_samp_skip = BicubicUpscale(2**(i+1))(inputs)
 
@@ -159,7 +304,16 @@ def sr_prosr_rcan(input_shape,scale_ratio):
 
     # Instantiate model.
     model = Model(inputs=inputs, outputs=outputs)
+    for layer in model.layers:
+        if type(layer) == Subpixel:
+            c, b = layer.get_weights()
+            if scale_ratio == 3:
+                w = icnr_weights(scale=3, shape=c.shape)
+            else:
+                w = icnr_weights(scale=2, shape=c.shape)
+            layer.set_weights([w, b])
     return model
+
 
 def sr_discriminator(input_shape, num_filters=32):
     inputs = Input(shape=input_shape)
@@ -211,6 +365,7 @@ def resnet_model(input_shape):
 def vgg19_model(input_shape):
     inputs = Input(shape=input_shape)
     # Get the vgg network. Extract features from last conv layer
+    #vgg = VGG19(weights="imagenet",include_top=False,input_shape=input_shape)
     vgg = VGG19(weights="imagenet")
     vgg.outputs = [vgg.layers[20].output]
     print(vgg.layers[20].input.shape)
@@ -326,4 +481,36 @@ def sr_combine(input_shape, gen_model, resnet_model):
 
     # Instantiate model.
     model = Model(inputs=inputs, outputs=[ gen_out, gen_feat])
+    return model
+
+
+
+
+def sr_x2_check(input_shape, gen_x2, gen_x4, gen_x8):
+    inputs = Input(shape=input_shape)
+    gen_out = gen_x2(inputs)
+    gen_out2 = gen_x4(gen_out)
+    gen_out3 = gen_x8(gen_out2)
+
+        #print(i, layer.name, layer.output)
+    #intermediate_layer_model = Model(inputs=x,
+    #                                 outputs=gen_model.get_layer("out_0").output)
+    #intermediate_output = intermediate_layer_model.predict(x,steps=1)
+    model = Model(inputs=inputs, outputs=[gen_out3, gen_out, gen_out2])
+    #model = Model(inputs=inputs, outputs=gen_out)
+    return model
+
+
+def sr_x2_check_val(input_shape, gen_x2, gen_x4, gen_x8):
+    inputs = Input(shape=input_shape)
+    gen_out = gen_x2(inputs)
+    gen_out2 = gen_x4(gen_out)
+    gen_out3 = gen_x8(gen_out2)
+
+        #print(i, layer.name, layer.output)
+    #intermediate_layer_model = Model(inputs=x,
+    #                                 outputs=gen_model.get_layer("out_0").output)
+    #intermediate_output = intermediate_layer_model.predict(x,steps=1)
+    model = Model(inputs=inputs, outputs=gen_out3)
+    #model = Model(inputs=inputs, outputs=gen_out)
     return model

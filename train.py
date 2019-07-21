@@ -5,7 +5,7 @@ import os
 from PIL import Image
 import numpy as np
 import tensorflow as tf
-from model import sr_resnet, sr_prosr_rcan,sr_discriminator, sr_gan_test, resnet_model, preprocess_resnet, vgg19_model, sr_resnet_test, sr_combine
+from model import sr_resnet, sr_prosr_rcan,sr_discriminator, sr_gan_test, resnet_model, preprocess_resnet, vgg19_model, sr_resnet_test, sr_combine, sr_x2_check,sr_prosr_rcan_test,sr_x2_check_val
 import re
 from tensorflow.keras import backend as K
 
@@ -119,7 +119,7 @@ def train_image_generator(batch_size, img_dir):
         yield (small_images, large_images)
         counter += batch_size
 
-def train_image_generator_test(batch_size, img_dir, model):
+def train_image_generator_test(batch_size, img_dir):
     """A generator that returns small images and large images.  DO NOT ALTER the validation set"""
     input_filenames = glob.glob(img_dir + "/*-in.jpg")
     counter = 0
@@ -130,6 +130,10 @@ def train_image_generator_test(batch_size, img_dir, model):
             (batch_size, config.output_width, config.output_height, 3))
         large_images = np.zeros(
             (batch_size, config.input_width*scale, config.input_height*scale, 3))
+        gtx2_images = np.zeros(
+            (batch_size, config.input_width * 2, config.input_height * 2, 3))
+        gtx4_images = np.zeros(
+            (batch_size, config.input_width * 4, config.input_height * 4, 3))
         random.shuffle(input_filenames)
         if counter+batch_size >= len(input_filenames):
             counter = 0
@@ -164,10 +168,12 @@ def train_image_generator_test(batch_size, img_dir, model):
                 else:
                     large_image = img.resize((config.input_width*scale, config.input_height*scale), Image.ANTIALIAS)  # regular resize
             large_image = image_transform(large_image, type)
-
+            gtx2 = large_image.resize((config.input_width*2, config.input_height*2), Image.ANTIALIAS)
+            gtx4 = large_image.resize((config.input_width*4, config.input_height*4), Image.ANTIALIAS)
             large_images[i] = np.array(large_image) / 255.0
-        feat = model.predict(preprocess_resnet(large_images))
-        yield (small_images, large_images, feat)
+            gtx2_images[i] = np.array(gtx2) / 255.0
+            gtx4_images[i] = np.array(gtx4) / 255.0
+        yield (small_images, large_images, gtx2_images, gtx4_images)
         counter += batch_size
 
 
@@ -484,35 +490,38 @@ elif 0:
             # wandb.log(results)
 
 
-else:
+elif 0:
     #all_train_input_imgs, all_train_output_imgs = get_all_imgs(train_dir)
     all_val_input_imgs, all_val_output_imgs = get_all_imgs(val_dir)
     print(len(all_val_input_imgs))
-    gan_lr = 0.001
-    disc_lr = 0.002
+    gan_lr = 1e-4
+    disc_lr = 1e-3
     if 1:
-        res = resnet_model(input_shape=(config.output_width, config.output_height, 3))
-        res.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
+        feat_matching = resnet_model(input_shape=(config.output_width, config.output_height, 3))
+        feat_matching.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
                               , loss='mse'
                     )
-        #vgg = vgg19_model(input_shape=(config.output_width, config.output_height, 3))
-        #vgg.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
-        #            , loss='mse'
-        #            )
+    else:
+        feat_matching = vgg19_model(input_shape=(config.output_width, config.output_height, 3))
+        feat_matching.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
+                    , loss='mse'
+                    )
     discriminator = sr_discriminator(input_shape=(config.output_width, config.output_height, 3))
     discriminator.compile(optimizer=tf.keras.optimizers.Adam(lr=disc_lr, decay=0.9)
                           , loss='binary_crossentropy'
                           )
-    generator = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
+    generator = sr_prosr_rcan(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
+    #print(generator.summary())
     generator.compile(optimizer='adam', loss='mae', metrics=[perceptual_distance, psnr, psnr_v2])
 
 
 
-    gan = sr_gan_test((config.input_width, config.input_height, 3), generator, discriminator,res)
+    gan = sr_gan_test((config.input_width, config.input_height, 3), generator, discriminator,feat_matching)
+    #print(gan.summary())
     gan.compile(
         loss=['binary_crossentropy', 'mse', 'mae'],
-        loss_weights=[1e-3, 0.06, 0.9],
-        optimizer=tf.keras.optimizers.Adam(lr=gan_lr,decay=0.9)
+        loss_weights=[5e-4, 1, 1e-2],
+        optimizer=tf.keras.optimizers.Adam(lr=gan_lr,beta_1=0.9,beta_2=0.999)
     )
     ## train generator for a couple of epochs
     if 0:
@@ -523,6 +532,7 @@ else:
                                 validation_steps=config.val_steps_per_epoch,
                                 validation_data=val_generator)
         generator.save_weights("trained_generator_{}X_epoch{}.h5".format(scale, 0))
+    generator.load_weights("gen_mode_prosr.h5")
 
     #print(gan.summary())
     #print(discriminator.summary())
@@ -542,7 +552,7 @@ else:
     itr_for_disc = 1
     for itr in range(config.num_epochs * config.steps_per_epoch):
         if (itr + 1) % config.steps_per_epoch == 0:
-            K.set_value(gan.optimizer.lr, lr_scheduler(gan_lr, (itr+1) // config.steps_per_epoch))
+            K.set_value(gan.optimizer.lr, lr_scheduler(gan_lr, (itr+1), decay_freq=50e3))
             K.set_value(discriminator.optimizer.lr, lr_scheduler(disc_lr, (itr+1) // config.steps_per_epoch))
 
         input_imgs, output_imgs = next(train_generator)
@@ -560,7 +570,7 @@ else:
 
             #input_imgs, output_imgs = next(train_generator.batch_gen(config.batch_size))
 
-            real_feat = res.predict(preprocess_resnet(output_imgs))
+            real_feat = feat_matching.predict(preprocess_resnet(output_imgs))
             gen_loss = gan.train_on_batch(input_imgs,[np.ones(config.batch_size), real_feat, output_imgs])
 
             #real_img_loss = discriminator.train_on_batch(output_imgs, np.ones(config.batch_size) * 0.9)
@@ -609,8 +619,158 @@ else:
                 all_real_loss = []
                 all_fake_loss = []
                 #wandb.log(results)
-                if (itr + 1) % (3 * 1000) == 0:
+                if (itr + 1) % 2000 == 0:
                     """Save the generator and discriminator networks"""
                     generator.save_weights("trained_new_generator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
                     discriminator.save_weights("trained_new_discriminator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
 
+else:
+    #all_train_input_imgs, all_train_output_imgs = get_all_imgs(train_dir)
+    all_val_input_imgs, all_val_output_imgs = get_all_imgs(val_dir)
+    print(len(all_val_input_imgs))
+    gan_lr = 1e-3
+    disc_lr = 1e-3
+    if 0:
+        if 1:
+            feat_matching = resnet_model(input_shape=(config.output_width, config.output_height, 3))
+            feat_matching.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
+                                  , loss='mse'
+                        )
+        else:
+            feat_matching = vgg19_model(input_shape=(config.output_width, config.output_height, 3))
+            feat_matching.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
+                        , loss='mse'
+                        )
+        discriminator = sr_discriminator(input_shape=(config.output_width, config.output_height, 3))
+        discriminator.compile(optimizer=tf.keras.optimizers.Adam(lr=disc_lr, decay=0.9)
+                              , loss='binary_crossentropy'
+                              )
+    generatorx2 = sr_prosr_rcan_test(input_shape=(config.input_width, config.input_height, 3), scale_ratio=2)
+    #print(generator.summary())
+    generatorx2.compile(optimizer='adam', loss='mae', metrics=[perceptual_distance, psnr, psnr_v2])
+    generatorx4 = sr_prosr_rcan_test(input_shape=(config.input_width*2, config.input_height*2, 3), scale_ratio=2)
+    # print(generator.summary())
+    generatorx4.compile(optimizer='adam', loss='mae', metrics=[perceptual_distance, psnr, psnr_v2])
+    generatorx8 = sr_prosr_rcan_test(input_shape=(config.input_width*4, config.input_height*4, 3), scale_ratio=2)
+    # print(generator.summary())
+    generatorx8.compile(optimizer='adam', loss='mae', metrics=[perceptual_distance, psnr, psnr_v2])
+
+    test = sr_x2_check((config.input_width, config.input_height, 3), generatorx2,generatorx4,generatorx8)
+    test2 = sr_x2_check_val((config.input_width, config.input_height, 3), generatorx2,generatorx4,generatorx8)
+    #print(gan.summary())
+    test.compile(
+        loss=['mae', 'mae', 'mae'],
+        loss_weights=[1, 1, 1],
+        metrics=[perceptual_distance],
+        optimizer=tf.keras.optimizers.Adam(lr=gan_lr,beta_1=0.9,beta_2=0.999)
+    )
+
+    test2.compile(
+        loss=['mae'],
+        metrics=[perceptual_distance],
+        optimizer=tf.keras.optimizers.Adam(lr=gan_lr, beta_1=0.9, beta_2=0.999)
+    )
+    print(test2.summary())
+
+    ## train generator for a couple of epochs
+    if 0:
+        generator.fit_generator(train_image_generator(config.batch_size, train_dir),
+                                steps_per_epoch=config.steps_per_epoch,
+                                epochs=2000, callbacks=[
+                ImageLogger(), WandbCallback()],
+                                validation_steps=config.val_steps_per_epoch,
+                                validation_data=val_generator)
+        generator.save_weights("trained_generator_{}X_epoch{}.h5".format(scale, 0))
+    #generator.load_weights("gen_mode_prosr.h5")
+
+        #print(gan.summary())
+        #print(discriminator.summary())
+        disc_weights_list = discriminator.trainable_weights
+        gen_weights_list = generator.trainable_weights
+        gan_weights_list = gan.trainable_weights
+
+    train_generator = train_image_generator_test(config.batch_size, train_dir)
+    val_generator = image_generator(config.batch_size, val_dir)
+    all_x2_dist = []
+    all_x4_dist = []
+    all_x8_dist = []
+    all_gen_loss = []
+    all_x8_loss = []
+    all_x4_loss = []
+    all_x2_loss = []
+    itr_for_disc = 1
+    for itr in range(config.num_epochs * config.steps_per_epoch):
+        if (itr + 1) % config.steps_per_epoch == 0:
+            K.set_value(test.optimizer.lr, lr_scheduler(gan_lr, (itr+1), decay_freq=50e3))
+            #K.set_value(discriminator.optimizer.lr, lr_scheduler(disc_lr, (itr+1) // config.steps_per_epoch))
+
+        input_imgs, output_imgs, gtx2_imgs, gtx4_imgs = next(train_generator)
+        #gen_imgs = generator.predict(input_imgs)
+        #real_img_loss = discriminator.train_on_batch(output_imgs, np.ones(config.batch_size)*0.9)
+        #fake_img_loss = discriminator.train_on_batch(gen_imgs, np.ones(config.batch_size)*0.1)
+        #dis_loss = 0.5 * np.add(real_img_loss,fake_img_loss)
+        #print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss, dis_loss)
+
+        #discriminator.trainable = False
+        #if itr == itr_for_disc+1 and 0:
+        #    discriminator.save_weights("trained_discriminator_{}X_epoch{}.h5".format(scale, 0))
+        #    print("real_img_loss: ", real_img_loss, "; fake_img_loss: ", fake_img_loss, dis_loss)
+
+        #input_imgs, output_imgs = next(train_generator.batch_gen(config.batch_size))
+
+        #real_feat = feat_matching.predict(preprocess_resnet(output_imgs))
+        gen_loss = test.train_on_batch(input_imgs,[output_imgs, gtx2_imgs, gtx4_imgs])
+        #print(output_imgs.shape)
+        #results = test2.evaluate(all_val_input_imgs, all_val_output_imgs)
+
+        #real_img_loss = discriminator.train_on_batch(output_imgs, np.ones(config.batch_size) * 0.9)
+        #gen_imgs = generator.predict(input_imgs)
+        #fake_img_loss = discriminator.evaluate(gen_imgs, np.ones(config.batch_size)*0.9)
+
+        #print("gan loss: ", gen_loss)
+        #all_dis_loss.append(dis_loss)
+        #all_real_loss.append(real_img_loss)
+        #all_fake_loss.append(fake_img_loss)
+        print(gen_loss)
+        all_gen_loss.append(gen_loss[0])
+        all_x8_loss.append(gen_loss[1])
+        all_x4_loss.append(gen_loss[3])
+        all_x2_loss.append(gen_loss[2])
+        all_x8_dist.append(gen_loss[4])
+        all_x4_dist.append(gen_loss[6])
+        all_x2_dist.append(gen_loss[5])
+        if (itr+1) % 128 == 0:
+            #print("fake_img_loss: ", fake_img_loss)
+
+            print(itr, np.mean(np.array(all_gen_loss)), np.mean(np.array(all_x8_loss)), np.mean(np.array(all_x4_loss)), np.mean(np.array(all_x2_loss)), np.mean(np.array(all_x8_dist)), np.mean(np.array(all_x4_dist)), np.mean(np.array(all_x2_dist)))
+
+
+        if (itr+1) % 512 == 0:
+            #results = generator.evaluate(input_imgs, output_imgs, config.batch_size)
+            #print("train performance", generator.evaluate(all_train_input_imgs, all_train_output_imgs, config.batch_size))
+            #results = generator.evaluate(all_val_input_imgs, all_val_output_imgs, config.batch_size)
+            #results = test2.evaluate(all_val_input_imgs, all_val_output_imgs)
+            #print("val performance", results)
+            #LogImage(test2, in_sample_images, out_sample_images)
+            wandb.log({"x2 loss": np.mean(np.array(all_x2_loss)),
+                       "x4 loss": np.mean(np.array(all_x4_loss)),
+                       "x8 loss": np.mean(np.array(all_x8_loss)),
+                       "x2 dist": np.mean(np.array(all_x2_dist)),
+                       "x4 dist": np.mean(np.array(all_x4_dist)),
+                       "x8 dist": np.mean(np.array(all_x8_dist)),
+                       #"val perceptual dist": results[1],
+
+                       })
+            all_x2_dist = []
+            all_x4_dist = []
+            all_x8_dist = []
+            all_gen_loss = []
+            all_x8_loss = []
+            all_x4_loss = []
+            all_x2_loss = []
+            #wandb.log(results)
+            if (itr + 1) % 2000 == 0:
+                """Save the generator and discriminator networks"""
+                pass
+                generator.save_weights("trained_new_generator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
+                discriminator.save_weights("trained_new_discriminator_{}X_epoch{}.h5".format(scale, itr // config.steps_per_epoch))
