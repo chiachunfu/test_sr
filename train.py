@@ -17,7 +17,7 @@ configProt.allow_soft_placement = True
 from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras import layers
 from tensorflow.keras import backend as K
-from tensorflow.keras.callbacks import Callback, ModelCheckpoint
+from tensorflow.keras.callbacks import Callback, ModelCheckpoint,ReduceLROnPlateau
 from tensorflow.keras.regularizers import l2
 import wandb
 from wandb.keras import WandbCallback
@@ -497,8 +497,8 @@ def perceptual_distance_np(y_true, y_pred):
     #print(type(l))
 val_generator = image_generator(config.batch_size, val_dir)
 in_sample_images, out_sample_images = next(val_generator)
-if 0:
-    model = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
+if 1:
+    model = sr_resnet84(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
 
     opt = tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
 
@@ -510,18 +510,20 @@ if 0:
     in_sample_images, out_sample_images = next(val_generator)
 
 
-    checkpoint = ModelCheckpoint('best_resnet_x8.h5', monitor='val_loss', verbose=1, save_best_only=True, mode='min')
-
+    checkpoint = ModelCheckpoint('best_resnet84_x8.h5', monitor='val_loss', verbose=1, save_best_only=True, mode='min')
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5,
+                                  patience=5, min_lr=1e-7)
+    #model.fit(X_train, Y_train, callbacks=[reduce_lr])
     model.fit_generator(train_image_generator(config.batch_size, train_dir),
                         steps_per_epoch=config.steps_per_epoch,
                         #steps_per_epoch=1,
                         epochs=config.num_epochs, callbacks=[
                         #epochs = config.num_epochs, callbacks = [
-                        checkpoint],
+                        checkpoint,reduce_lr],
                         #ImageLogger(), WandbCallback()],
                         validation_steps=config.val_steps_per_epoch,
                         validation_data=val_generator)
-elif 1:
+elif 0:
     model = dbpn(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
 
     opt = tf.keras.optimizers.Adam(lr=0.0001,decay=0.9)
