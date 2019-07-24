@@ -47,16 +47,21 @@ config.val_steps_per_epoch = len(
     glob.glob(val_dir + "/*-in.jpg")) // config.batch_size
 
 
-def image_transform(img, type):
-    if type == 0:
+def image_transform_rot_flip(img, rot_type, flip_type):
+    if rot_type == 0:
         pass
-    elif type == 4:
-        img = img.transpose(0)
-    elif type == 5:
-        img = img.transpose(1)
     else:
-        img = img.rotate(90 * type)
+        img = img.rotate(90 * rot_type)
+
+    if flip_type == 0:
+        pass
+    elif flip_type == 1:
+        img = img.transpose(0)
+    elif flip_type == 2:
+        img = img.transpose(1)
+
     return img
+
 
 def get_all_imgs(img_dir):
     input_filenames = glob.glob(img_dir + "/*-in.jpg")
@@ -98,18 +103,25 @@ def train_image_generator(batch_size, img_dir):
             else:
                 carnation_check = 0
         for i in range(batch_size):
-            type = random.randint(0, 5) #augment option
+            rot_type = random.randint(0, 3) #augment option
+            flip_type = random.randint(0, 2) #augment option
+            #flip_type = random.randint(0, 2) #augment option
             img = input_filenames[counter + i]
+            color_shuffle = random.randint(0, 1) #augment option
+            is_syn = np.random.choice(2,1,p=[0.75, 0.25])[0]
             #print(img)
-            small_img = Image.open(img)
-            small_img = image_transform(small_img, type)
+            if not is_syn:
+                small_img = Image.open(img)
+                small_img = image_transform_rot_flip(small_img, rot_type, flip_type)
+            if color_shuffle:
+                rgb = [0,1,2]
+                np.random.shuffle(rgb)
             add_blur = np.random.choice(2,1,p=[0.75, 0.25])[0]
-            if add_blur:
+            if add_blur and 0:
                 blur_radius = np.random.choice(4,1,p=[0.6, 0.25, 0.1, 0.05])[0] / 2 + 0.5
                 small_img = small_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
-            small_images[i] = np.array(small_img) / 255.0
-            img = Image.open(img.replace("-in.jpg", "-out.jpg"))
-            if 1:
+            large_image = Image.open(img.replace("-in.jpg", "-out.jpg"))
+            if 0:
                 if 'P' in img.mode:  # check if image is a palette type
                     img = img.convert("RGB")  # convert it to RGB
                     img = img.resize((config.input_width*scale, config.input_height*scale), Image.ANTIALIAS)  # resize it
@@ -117,7 +129,20 @@ def train_image_generator(batch_size, img_dir):
                     # convert back to palette
                 else:
                     large_image = img.resize((config.input_width*scale, config.input_height*scale), Image.ANTIALIAS)  # regular resize
-            large_image = image_transform(large_image, type)
+            large_image = image_transform_rot_flip(large_image, rot_type, flip_type)
+            if is_syn:
+                blur_radius = random.randint(0, 9) / 10
+
+                small_img = large_image.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+                small_img = small_img.resize((config.input_width,config.input_height),Image.NEAREST)
+
+            if color_shuffle:
+                rgb = [0,1,2]
+                np.random.shuffle(rgb)
+                small_img = np.array(small_img)[:,:,rgb]
+                large_image = np.array(large_image)[:,:,rgb]
+
+            small_images[i] = np.array(small_img) / 255.0
 
             large_images[i] = np.array(large_image) / 255.0
         yield (small_images, large_images)
@@ -511,7 +536,7 @@ elif 1:
     in_sample_images, out_sample_images = next(val_generator)
 
 
-    checkpoint = ModelCheckpoint('best_dbpn_x8.h5', monitor='val_loss', verbose=1, save_best_only=True, mode='min')
+    checkpoint = ModelCheckpoint('best_dbpn2_x8.h5', monitor='val_loss', verbose=1, save_best_only=True, mode='min')
 
     model.fit_generator(train_image_generator(config.batch_size, train_dir),
                         steps_per_epoch=config.steps_per_epoch,

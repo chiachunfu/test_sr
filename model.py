@@ -739,7 +739,7 @@ def dbpn(input_shape, scale_ratio):
     test_initializer = 'he_normal'
     reg_scale = 0
     num_filters = 32
-    T = 4
+    T = 2
     feat_extract1 = Conv2D(256, kernel_size=3,strides=1,padding='same',
                            kernel_initializer=test_initializer,
                            kernel_regularizer=l2(reg_scale))(inputs)
@@ -798,18 +798,22 @@ def dbpn(input_shape, scale_ratio):
         return out
 
 
-    #up_blocks = []
+    up_blocks = []
     #down_blocks = []
     x = UpProj(feat_extract2, num_filters=num_filters)
-    #up_blocks.append(x)
+    up_blocks.append(x)
     x = DownProj(x, num_filters=num_filters)
     #down_blocks.append(x)
 
     for i in range(1, T - 1):
         x = UpProj(x, num_filters=num_filters)
+        up_blocks.append(x)
         x = DownProj(x, num_filters=num_filters)
 
     x = UpProj(x, num_filters=num_filters)
+    up_blocks.append(x)
+    x = Concatenate()(up_blocks)
+
     outputs = Conv2D(3, kernel_size=3, strides=1, padding='same',
                     kernel_initializer=test_initializer,
                     kernel_regularizer=l2(reg_scale))(x)
