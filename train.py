@@ -103,23 +103,23 @@ def train_image_generator(batch_size, img_dir):
             else:
                 carnation_check = 0
         for i in range(batch_size):
-            rot_type = random.randint(0, 3) #augment option
-            flip_type = random.randint(0, 2) #augment option
+            #rot_type = random.randint(0, 3) #augment option
+            #flip_type = random.randint(0, 2) #augment option
             #flip_type = random.randint(0, 2) #augment option
             img = input_filenames[counter + i]
-            color_shuffle = random.randint(0, 1) #augment option
-            is_syn = np.random.choice(2,1,p=[0.75, 0.25])[0]
+            #color_shuffle = random.randint(0, 1) #augment option
+            #is_syn = np.random.choice(2,1,p=[0.75, 0.25])[0]
             #print(img)
-            if not is_syn:
-                small_img = Image.open(img)
-                small_img = image_transform_rot_flip(small_img, rot_type, flip_type)
-            if color_shuffle:
-                rgb = [0,1,2]
-                np.random.shuffle(rgb)
+            #if not is_syn:
+            small_img = Image.open(img)
+                #small_img = image_transform_rot_flip(small_img, rot_type, flip_type)
+            ##if color_shuffle:
+            #    rgb = [0,1,2]
+            #    np.random.shuffle(rgb)
             add_blur = np.random.choice(2,1,p=[0.75, 0.25])[0]
-            if add_blur and 0:
-                blur_radius = np.random.choice(4,1,p=[0.6, 0.25, 0.1, 0.05])[0] / 2 + 0.5
-                small_img = small_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+            #if add_blur and 0:
+            #    blur_radius = np.random.choice(4,1,p=[0.6, 0.25, 0.1, 0.05])[0] / 2 + 0.5
+            #    small_img = small_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
             large_image = Image.open(img.replace("-in.jpg", "-out.jpg"))
             if 0:
                 if 'P' in img.mode:  # check if image is a palette type
@@ -129,18 +129,18 @@ def train_image_generator(batch_size, img_dir):
                     # convert back to palette
                 else:
                     large_image = img.resize((config.input_width*scale, config.input_height*scale), Image.ANTIALIAS)  # regular resize
-            large_image = image_transform_rot_flip(large_image, rot_type, flip_type)
-            if is_syn:
-                blur_radius = random.randint(0, 9) / 10
+            #large_image = image_transform_rot_flip(large_image, rot_type, flip_type)
+            #if is_syn:
+            #    blur_radius = random.randint(0, 9) / 10
 
-                small_img = large_image.filter(ImageFilter.GaussianBlur(radius=blur_radius))
-                small_img = small_img.resize((config.input_width,config.input_height),Image.NEAREST)
+            #    small_img = large_image.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+            #    small_img = small_img.resize((config.input_width,config.input_height),Image.NEAREST)
 
-            if color_shuffle:
-                rgb = [0,1,2]
-                np.random.shuffle(rgb)
-                small_img = np.array(small_img)[:,:,rgb]
-                large_image = np.array(large_image)[:,:,rgb]
+            #if color_shuffle:
+            #    rgb = [0,1,2]
+            #    np.random.shuffle(rgb)
+            #    small_img = np.array(small_img)[:,:,rgb]
+            #    large_image = np.array(large_image)[:,:,rgb]
 
             small_images[i] = np.array(small_img) / 255.0
 
@@ -510,13 +510,13 @@ if 1:
     in_sample_images, out_sample_images = next(val_generator)
 
 
-    checkpoint = ModelCheckpoint('best_resnet84_x8.h5', monitor='val_loss', verbose=1, save_best_only=True, mode='min')
+    checkpoint = ModelCheckpoint('best_resnet84_x8_no_aug.h5', monitor='val_loss', verbose=1, save_best_only=True, mode='min')
     reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5,
                                   patience=5, min_lr=1e-7)
     #model.fit(X_train, Y_train, callbacks=[reduce_lr])
     model.fit_generator(train_image_generator(config.batch_size, train_dir),
-                        steps_per_epoch=config.steps_per_epoch,
-                        #steps_per_epoch=1,
+                        #steps_per_epoch=config.steps_per_epoch,
+                        steps_per_epoch=1,
                         epochs=config.num_epochs, callbacks=[
                         #epochs = config.num_epochs, callbacks = [
                         checkpoint,reduce_lr],
