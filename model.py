@@ -739,7 +739,7 @@ def dbpn(input_shape, scale_ratio):
     test_initializer = 'he_normal'
     reg_scale = 0
     num_filters = 32
-    T = 2
+    T = 4
     feat_extract1 = Conv2D(256, kernel_size=3,strides=1,padding='same',
                            kernel_initializer=test_initializer,
                            kernel_regularizer=l2(reg_scale))(inputs)
