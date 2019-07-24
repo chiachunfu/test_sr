@@ -515,8 +515,8 @@ if 1:
                                   patience=5, min_lr=1e-7)
     #model.fit(X_train, Y_train, callbacks=[reduce_lr])
     model.fit_generator(train_image_generator(config.batch_size, train_dir),
-                        #steps_per_epoch=config.steps_per_epoch,
-                        steps_per_epoch=1,
+                        steps_per_epoch=config.steps_per_epoch,
+                        #steps_per_epoch=1,
                         epochs=config.num_epochs, callbacks=[
                         #epochs = config.num_epochs, callbacks = [
                         checkpoint,reduce_lr],
