@@ -5,7 +5,7 @@ import os
 from PIL import Image, ImageFilter
 import numpy as np
 import tensorflow as tf
-from model import sr_resnet, sr_prosr_rcan,sr_discriminator, sr_gan_test, resnet_model, preprocess_resnet, vgg19_model, sr_resnet_test, sr_combine, sr_x2_check,sr_prosr_rcan_test,sr_x2_check2,sr_prosr_rcan_upsample, sr_resnet84, dbpn
+from model import sr_resnet, sr_prosr_rcan,sr_discriminator, sr_gan_test, resnet_model, preprocess_resnet, vgg19_model, sr_resnet_test, sr_combine, sr_x2_check,sr_prosr_rcan_test,sr_x2_check2,sr_prosr_rcan_upsample, sr_resnet84, dbpn,sr_resnet_simp
 import re
 from tensorflow.keras import backend as K
 
@@ -31,7 +31,7 @@ config.input_height = 32
 config.input_width = 32
 config.output_height = 256
 config.output_width = 256
-scale = 8
+scale = 2
 val_dir = 'data/test'
 train_dir = 'data/train'
 
@@ -121,14 +121,14 @@ def train_image_generator(batch_size, img_dir):
             #    blur_radius = np.random.choice(4,1,p=[0.6, 0.25, 0.1, 0.05])[0] / 2 + 0.5
             #    small_img = small_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
             large_image = Image.open(img.replace("-in.jpg", "-out.jpg"))
-            if 0:
-                if 'P' in img.mode:  # check if image is a palette type
-                    img = img.convert("RGB")  # convert it to RGB
-                    img = img.resize((config.input_width*scale, config.input_height*scale), Image.ANTIALIAS)  # resize it
-                    large_image = img.convert("P", dither=Image.NONE, palette=Image.ADAPTIVE)
+            if 1:
+                if 'P' in large_image.mode:  # check if image is a palette type
+                    large_image = large_image.convert("RGB")  # convert it to RGB
+                    large_image = large_image.resize((config.input_width*2, config.input_height*2), Image.ANTIALIAS)  # resize it
+                    large_image = large_image.convert("P", dither=Image.NONE, palette=Image.ADAPTIVE)
                     # convert back to palette
                 else:
-                    large_image = img.resize((config.input_width*scale, config.input_height*scale), Image.ANTIALIAS)  # regular resize
+                    large_image = large_image.resize((config.input_width*2, config.input_height*2), Image.ANTIALIAS)  # regular resize
             #large_image = image_transform_rot_flip(large_image, rot_type, flip_type)
             #if is_syn:
             #    blur_radius = random.randint(0, 9) / 10
@@ -191,11 +191,11 @@ def train_image_generator1(batch_size, files):
             if 1:
                 if 'P' in img.mode:  # check if image is a palette type
                     img = img.convert("RGB")  # convert it to RGB
-                    img = img.resize((config.input_width*scale, config.input_height*scale), Image.ANTIALIAS)  # resize it
+                    img = img.resize((config.input_width*scale, config.input_height*scale), Image.BICUBIC)  # resize it
                     large_image = img.convert("P", dither=Image.NONE, palette=Image.ADAPTIVE)
                     # convert back to palette
                 else:
-                    large_image = img.resize((config.input_width*scale, config.input_height*scale), Image.ANTIALIAS)  # regular resize
+                    large_image = img.resize((config.input_width*scale, config.input_height*scale), Image.BICUBIC)  # regular resize
             large_image = image_transform(large_image, type)
 
             large_images[i] = np.array(large_image) / 255.0
@@ -340,7 +340,8 @@ def image_generator(batch_size, img_dir):
             small_img = Image.open(img)
             small_images[i] = np.array(small_img) / 255.0
             large_image = Image.open(img.replace("-in.jpg", "-out.jpg"))
-
+            if not scale == 8:
+                large_image = large_image.resize((config.input_height*scale , config.input_height * scale),Image.BICUBIC)
             large_images[i] = np.array(large_image) / 255.0
         yield (small_images, large_images)
         counter += batch_size
@@ -497,7 +498,7 @@ def perceptual_distance_np(y_true, y_pred):
     #print(type(l))
 val_generator = image_generator(config.batch_size, val_dir)
 in_sample_images, out_sample_images = next(val_generator)
-if 1:
+if 0:
     model = sr_resnet84(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
 
     opt = tf.keras.optimizers.Adam(lr=0.001,decay=0.9)
@@ -523,6 +524,32 @@ if 1:
                         #ImageLogger(), WandbCallback()],
                         validation_steps=config.val_steps_per_epoch,
                         validation_data=val_generator)
+elif 1:
+        model = sr_resnet_simp(input_shape=(config.input_width, config.input_height, 3), scale_ratio=2)
+
+        opt = tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
+
+        # DONT ALTER metrics=[perceptual_distance]
+        model.compile(optimizer='adam', loss=custom_loss(),
+                      metrics=[perceptual_distance, psnr, psnr_v2])
+        print(model.summary())
+        val_generator = image_generator(config.batch_size, val_dir)
+        in_sample_images, out_sample_images = next(val_generator)
+
+        checkpoint = ModelCheckpoint('best_resnet_simp_x2_no_aug.h5', monitor='val_loss', verbose=1, save_best_only=True,
+                                     mode='min')
+        reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5,
+                                      patience=5, min_lr=1e-7)
+        # model.fit(X_train, Y_train, callbacks=[reduce_lr])
+        model.fit_generator(train_image_generator(config.batch_size, train_dir),
+                            steps_per_epoch=config.steps_per_epoch,
+                            # steps_per_epoch=1,
+                            epochs=config.num_epochs, callbacks=[
+                # epochs = config.num_epochs, callbacks = [
+                            checkpoint, reduce_lr],
+                            # ImageLogger(), WandbCallback()],
+                            validation_steps=config.val_steps_per_epoch,
+                            validation_data=val_generator)
 elif 0:
     model = dbpn(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
 

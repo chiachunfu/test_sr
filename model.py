@@ -1,5 +1,5 @@
 
-from tensorflow.keras.layers import Conv2D, BatchNormalization, Activation, Input, add, Lambda, Dense, Flatten, LeakyReLU, UpSampling2D, PReLU, Conv2DTranspose, subtract,Concatenate
+from tensorflow.keras.layers import Conv2D, BatchNormalization, Activation, Input, add, Lambda, Dense, Flatten, LeakyReLU, UpSampling2D, PReLU, Conv2DTranspose, subtract,Concatenate, concatenate
 from tensorflow.keras.regularizers import l2, l1
 from tensorflow.keras.initializers import RandomUniform
 from tensorflow.keras.models import Sequential, Model
@@ -929,3 +929,71 @@ def ddbpn(input_shape, scale_ratio):
     return model
 
 
+
+def sr_resnet_simp(input_shape,scale_ratio):
+    #inputs = Input(shape=input_shape)
+    # v2 performs Conv2D with BN-ReLU on input before splitting into 2 paths
+    num_filters = 64
+    reg_scale = 0
+    scale_ratio = 2
+    num_filters_out = max(64, 3 * scale_ratio**2)
+    inputs = Input(shape=input_shape)
+    #test_initializer = RandomUniform(minval=-0.005, maxval=0.005,seed=None)
+    test_initializer = 'he_normal'
+    num_filters = [256,128,128,80]
+    x1 = Conv2DWeightNorm(num_filters[0],
+               kernel_size=3,
+               strides=1,
+               padding='same',
+               kernel_initializer=test_initializer,
+               kernel_regularizer=l2(reg_scale)
+               )(inputs)
+    x1 = PReLU(alpha_initializer='zero', shared_axes=[1, 2])(x1)
+
+    x2 = Conv2DWeightNorm(num_filters[1],
+                         kernel_size=3,
+                         strides=2,
+                         padding='same',
+                         kernel_initializer=test_initializer,
+                         kernel_regularizer=l2(reg_scale)
+                         )(x1)
+    x2 = PReLU(alpha_initializer='zero', shared_axes=[1, 2])(x2)
+
+
+    x3 = Conv2DWeightNorm(num_filters[2],
+                         kernel_size=3,
+                         strides=2,
+                         padding='same',
+                         kernel_initializer=test_initializer,
+                         kernel_regularizer=l2(reg_scale)
+                         )(x2)
+    x3 = PReLU(alpha_initializer='zero', shared_axes=[1, 2])(x3)
+    x3_x2 = SubpixelConv2D([None, input_shape[0]//4, input_shape[1]//4],
+                             scale=scale_ratio,
+                             name='sub_1'
+                             )(x3)
+
+    x2_concat = concatenate([x2, x3_x2])
+    print(x2.get_shape())
+    print(x3_x2.get_shape())
+    print(x2_concat.get_shape())
+    x2_x2 = SubpixelConv2D([None, input_shape[0] // 2, input_shape[1] // 2],
+            scale = scale_ratio,
+            name = 'sub_2'
+            )(x2_concat)
+    x1_concat = concatenate([x1, x2_x2])
+    x1_2x = SubpixelConv2D([None, input_shape[0] , input_shape[1]],
+        scale = scale_ratio,
+        name = 'sub_3'
+        )(x1_concat)
+    outputs = Conv2DWeightNorm(3,
+                          kernel_size=3,
+                          strides=1,
+                          padding='same',
+                          kernel_initializer=test_initializer,
+                          kernel_regularizer=l2(reg_scale)
+                          )(x1_2x)
+
+    # Instantiate model.
+    model = Model(inputs=inputs, outputs=outputs)
+    return model
