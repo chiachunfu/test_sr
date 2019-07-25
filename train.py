@@ -34,6 +34,7 @@ config.output_width = 256
 scale = 2
 val_dir = 'data/test'
 train_dir = 'data/train'
+train_test_dir = 'data/train_new'
 
 # automatically get the data if it doesn't exist
 if not os.path.exists("data"):
@@ -45,6 +46,56 @@ config.steps_per_epoch = len(
     glob.glob(train_dir + "/*-in.jpg")) // config.batch_size
 config.val_steps_per_epoch = len(
     glob.glob(val_dir + "/*-in.jpg")) // config.batch_size
+
+
+def img_augmentation():
+    print('augmenting...')
+    import shutil
+    shutil.copytree('./data/train', './data/train_new')
+    input_filenames = glob.glob('./data/train_new' + "/*-in.jpg")
+    for f in input_filenames:
+        small_img = Image.open(f)
+        small_img_rot90 = small_img.rotate(90)
+        small_img_rot180 = small_img.rotate(180)
+        small_img_rot270 = small_img.rotate(270)
+        small_img_rot90_flip0 = small_img_rot90.transpose(0)
+        small_img_rot90_flip1 = small_img_rot90.transpose(1)
+        small_img_rot180_flip0 = small_img_rot180.transpose(0)
+        small_img_rot180_flip1 = small_img_rot180.transpose(1)
+        small_img_rot270_flip0 = small_img_rot270.transpose(0)
+        small_img_rot270_flip1 = small_img_rot270.transpose(1)
+
+        small_img_rot90.save(f.replace('-in.jpg', '1-in.jpg'))
+        small_img_rot180.save(f.replace('-in.jpg', '2-in.jpg'))
+        small_img_rot270.save(f.replace('-in.jpg', '3-in.jpg'))
+        small_img_rot90_flip0.save(f.replace('-in.jpg', '4-in.jpg'))
+        small_img_rot90_flip1.save(f.replace('-in.jpg', '5-in.jpg'))
+        small_img_rot180_flip0.save(f.replace('-in.jpg', '6-in.jpg'))
+        small_img_rot180_flip1.save(f.replace('-in.jpg', '7-in.jpg'))
+        small_img_rot270_flip0.save(f.replace('-in.jpg', '8-in.jpg'))
+        small_img_rot270_flip1.save(f.replace('-in.jpg', '9-in.jpg'))
+
+        f_l = f.replace('-in.jpg', '-out.jpg')
+        large_img = Image.open(f_l)
+        large_img_rot90 = large_img.rotate(90)
+        large_img_rot180 = large_img.rotate(180)
+        large_img_rot270 = large_img.rotate(270)
+        large_img_rot90_flip0 = large_img_rot90.transpose(0)
+        large_img_rot90_flip1 = large_img_rot90.transpose(1)
+        large_img_rot180_flip0 = large_img_rot180.transpose(0)
+        large_img_rot180_flip1 = large_img_rot180.transpose(1)
+        large_img_rot270_flip0 = large_img_rot270.transpose(0)
+        large_img_rot270_flip1 = large_img_rot270.transpose(1)
+
+        large_img_rot90.save(f_l.replace('-out.jpg', '1-out.jpg'))
+        large_img_rot180.save(f_l.replace('-out.jpg', '2-out.jpg'))
+        large_img_rot270.save(f_l.replace('-out.jpg', '3-out.jpg'))
+        large_img_rot90_flip0.save(f_l.replace('-out.jpg', '4-out.jpg'))
+        large_img_rot90_flip1.save(f_l.replace('-out.jpg', '5-out.jpg'))
+        large_img_rot180_flip0.save(f_l.replace('-out.jpg', '6-out.jpg'))
+        large_img_rot180_flip1.save(f_l.replace('-out.jpg', '7-out.jpg'))
+        large_img_rot270_flip0.save(f_l.replace('-out.jpg', '8-out.jpg'))
+        large_img_rot270_flip1.save(f_l.replace('-out.jpg', '9-out.jpg'))
 
 
 def image_transform_rot_flip(img, rot_type, flip_type):
@@ -103,16 +154,16 @@ def train_image_generator(batch_size, img_dir):
             else:
                 carnation_check = 0
         for i in range(batch_size):
-            rot_type = random.randint(0, 3) #augment option
-            flip_type = random.randint(0, 2) #augment option
+            #rot_type = random.randint(0, 3) #augment option
+            #flip_type = random.randint(0, 2) #augment option
             #flip_type = random.randint(0, 2) #augment option
             img = input_filenames[counter + i]
-            color_shuffle = random.randint(0, 1) #augment option
-            is_syn = np.random.choice(2,1,p=[0.75, 0.25])[0]
+            #color_shuffle = random.randint(0, 1) #augment option
+            #is_syn = np.random.choice(2,1,p=[0.75, 0.25])[0]
             #print(img)
-            if not is_syn:
-                small_img = Image.open(img)
-                small_img = image_transform_rot_flip(small_img, rot_type, flip_type)
+            #if not is_syn:
+            small_img = Image.open(img)
+            #small_img = image_transform_rot_flip(small_img, rot_type, flip_type)
             ##if color_shuffle:
             #    rgb = [0,1,2]
             #    np.random.shuffle(rgb)
@@ -124,23 +175,22 @@ def train_image_generator(batch_size, img_dir):
             if 1:
                 if 'P' in large_image.mode:  # check if image is a palette type
                     large_image = large_image.convert("RGB")  # convert it to RGB
-                    large_image = large_image.resize((config.input_width*2, config.input_height*2), Image.ANTIALIAS)  # resize it
+                    large_image = large_image.resize((config.input_width*2, config.input_height*2), Image.BILINEAR)  # resize it
                     large_image = large_image.convert("P", dither=Image.NONE, palette=Image.ADAPTIVE)
                     # convert back to palette
                 else:
-                    large_image = large_image.resize((config.input_width*2, config.input_height*2), Image.ANTIALIAS)  # regular resize
-            large_image = image_transform_rot_flip(large_image, rot_type, flip_type)
-            if is_syn:
-                blur_radius = random.randint(0, 9) / 10
+                    large_image = large_image.resize((config.input_width*2, config.input_height*2), Image.BILINEAR)  # regular resize
+            #large_image = image_transform_rot_flip(large_image, rot_type, flip_type)
+            #if is_syn:
+            #    blur_radius = random.randint(0, 9) / 10
+            #    small_img = large_image.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+            #    small_img = small_img.resize((config.input_width,config.input_height),Image.NEAREST)
 
-                small_img = large_image.filter(ImageFilter.GaussianBlur(radius=blur_radius))
-                small_img = small_img.resize((config.input_width,config.input_height),Image.NEAREST)
-
-            if color_shuffle:
-                rgb = [0,1,2]
-                np.random.shuffle(rgb)
-                small_img = np.array(small_img)[:,:,rgb]
-                large_image = np.array(large_image)[:,:,rgb]
+            #if color_shuffle:
+            #    rgb = [0,1,2]
+            #    np.random.shuffle(rgb)
+            #    small_img = np.array(small_img)[:,:,rgb]
+            #    large_image = np.array(large_image)[:,:,rgb]
 
             small_images[i] = np.array(small_img) / 255.0
 
@@ -525,31 +575,32 @@ if 0:
                         validation_steps=config.val_steps_per_epoch,
                         validation_data=val_generator)
 elif 1:
-        model = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=2)
+    img_augmentation()
+    model = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=2)
 
-        opt = tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
+    opt = tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
 
-        # DONT ALTER metrics=[perceptual_distance]
-        model.compile(optimizer='adam', loss=custom_loss(),
-                      metrics=[perceptual_distance, psnr, psnr_v2])
-        print(model.summary())
-        val_generator = image_generator(config.batch_size, val_dir)
-        in_sample_images, out_sample_images = next(val_generator)
+    # DONT ALTER metrics=[perceptual_distance]
+    model.compile(optimizer='adam', loss=custom_loss(),
+                  metrics=[perceptual_distance, psnr, psnr_v2])
+    print(model.summary())
+    val_generator = image_generator(config.batch_size, val_dir)
+    in_sample_images, out_sample_images = next(val_generator)
 
-        checkpoint = ModelCheckpoint('best_resnet_x2_no_aug.h5', monitor='val_loss', verbose=1, save_best_only=True,
-                                     mode='min')
-        reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5,
-                                      patience=5, min_lr=1e-7)
-        # model.fit(X_train, Y_train, callbacks=[reduce_lr])
-        model.fit_generator(train_image_generator(config.batch_size, train_dir),
-                            steps_per_epoch=config.steps_per_epoch,
-                            #steps_per_epoch=1,
-                            epochs=config.num_epochs, callbacks=[
-                # epochs = config.num_epochs, callbacks = [
-                            checkpoint, reduce_lr],
-                            # ImageLogger(), WandbCallback()],
-                            validation_steps=config.val_steps_per_epoch,
-                            validation_data=val_generator)
+    checkpoint = ModelCheckpoint('best_resnet_x2_aug.h5', monitor='val_loss', verbose=1, save_best_only=True,
+                                 mode='min')
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5,
+                                  patience=5, min_lr=1e-7)
+    # model.fit(X_train, Y_train, callbacks=[reduce_lr])
+    model.fit_generator(train_image_generator(config.batch_size, train_test_dir),
+                        steps_per_epoch=(len(glob.glob(train_test_dir + "/*-in.jpg") )// config.batch_size),
+                        #steps_per_epoch=1,
+                        epochs=config.num_epochs, callbacks=[
+            # epochs = config.num_epochs, callbacks = [
+                        checkpoint, reduce_lr],
+                        # ImageLogger(), WandbCallback()],
+                        validation_steps=config.val_steps_per_epoch,
+                        validation_data=val_generator)
 elif 0:
     model = dbpn(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
 
