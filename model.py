@@ -16,7 +16,8 @@ def sr_resnet(input_shape,scale_ratio):
     num_filters = 64
     reg_scale = 0
     #scale_ratio = 2
-    num_filters_out = max(64, 3 * scale_ratio**2)
+    #num_filters_out = max(64, 3 * scale_ratio**2)
+    num_filters_out = 3 * scale_ratio**2
     inputs = Input(shape=input_shape)
     #test_initializer = RandomUniform(minval=-0.005, maxval=0.005,seed=None)
     test_initializer = 'he_normal'
@@ -80,7 +81,7 @@ def sr_resnet(input_shape,scale_ratio):
                              )(pixelshuf_in)
 
     #res_out2 = layers.add([res_in2, x])
-    if 1:
+    if 0:
         pixelshuf_skip_in = Conv2DWeightNorm(num_filters_out,
                                    kernel_size=3,
                                    strides=1,
@@ -94,7 +95,8 @@ def sr_resnet(input_shape,scale_ratio):
                                   name='sub_2'
                                       )(pixelshuf_skip_in)
     else:
-        up_samp_skip = BicubicUpscale(8)(inputs)
+
+        up_samp_skip = BicubicUpscale(scale_ratio)(inputs)
     res_scale = 0.2
     if res_scale >= 0:
         up_samp = Lambda(lambda x: x * res_scale)(up_samp)
