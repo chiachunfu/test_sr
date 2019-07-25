@@ -108,11 +108,11 @@ def train_image_generator(batch_size, img_dir):
             #flip_type = random.randint(0, 2) #augment option
             img = input_filenames[counter + i]
             color_shuffle = random.randint(0, 1) #augment option
-            #is_syn = np.random.choice(2,1,p=[0.75, 0.25])[0]
+            is_syn = np.random.choice(2,1,p=[0.75, 0.25])[0]
             #print(img)
-            #if not is_syn:
-            small_img = Image.open(img)
-            small_img = image_transform_rot_flip(small_img, rot_type, flip_type)
+            if not is_syn:
+                small_img = Image.open(img)
+                small_img = image_transform_rot_flip(small_img, rot_type, flip_type)
             ##if color_shuffle:
             #    rgb = [0,1,2]
             #    np.random.shuffle(rgb)
@@ -130,17 +130,17 @@ def train_image_generator(batch_size, img_dir):
                 else:
                     large_image = large_image.resize((config.input_width*2, config.input_height*2), Image.ANTIALIAS)  # regular resize
             large_image = image_transform_rot_flip(large_image, rot_type, flip_type)
-            #if is_syn:
-            #    blur_radius = random.randint(0, 9) / 10
+            if is_syn:
+                blur_radius = random.randint(0, 9) / 10
 
-            #    small_img = large_image.filter(ImageFilter.GaussianBlur(radius=blur_radius))
-            #    small_img = small_img.resize((config.input_width,config.input_height),Image.NEAREST)
+                small_img = large_image.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+                small_img = small_img.resize((config.input_width,config.input_height),Image.NEAREST)
 
-            #if color_shuffle:
-            #    rgb = [0,1,2]
-            #    np.random.shuffle(rgb)
-            #    small_img = np.array(small_img)[:,:,rgb]
-            #    large_image = np.array(large_image)[:,:,rgb]
+            if color_shuffle:
+                rgb = [0,1,2]
+                np.random.shuffle(rgb)
+                small_img = np.array(small_img)[:,:,rgb]
+                large_image = np.array(large_image)[:,:,rgb]
 
             small_images[i] = np.array(small_img) / 255.0
 

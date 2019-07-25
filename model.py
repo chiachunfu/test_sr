@@ -21,13 +21,21 @@ def sr_resnet(input_shape,scale_ratio):
     inputs = Input(shape=input_shape)
     #test_initializer = RandomUniform(minval=-0.005, maxval=0.005,seed=None)
     test_initializer = 'he_normal'
-    x = Conv2DWeightNorm(num_filters,
+    x = Conv2DWeightNorm(256,
                kernel_size=3,
                strides=1,
                padding='same',
                kernel_initializer=test_initializer,
                kernel_regularizer=l2(reg_scale)
                )(inputs)
+    x = Conv2DWeightNorm(num_filters,
+                         kernel_size=1,
+                         strides=1,
+                         padding='same',
+                         kernel_initializer=test_initializer,
+                         kernel_regularizer=l2(reg_scale)
+                         )(x)
+
     num_res_layer = 8
 
     def res_blocks(res_in, num_chans):
