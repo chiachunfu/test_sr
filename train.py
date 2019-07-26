@@ -574,8 +574,8 @@ if 0:
                         #ImageLogger(), WandbCallback()],
                         validation_steps=config.val_steps_per_epoch,
                         validation_data=val_generator)
-elif 1:
-    img_augmentation()
+elif 0:
+    #img_augmentation()
     model = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=2)
 
     opt = tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
@@ -601,7 +601,7 @@ elif 1:
                         # ImageLogger(), WandbCallback()],
                         validation_steps=config.val_steps_per_epoch,
                         validation_data=val_generator)
-elif 0:
+elif 1:
     model = dbpn(input_shape=(config.input_width, config.input_height, 3), scale_ratio=scale)
 
     opt = tf.keras.optimizers.Adam(lr=0.0001,decay=0.9)
@@ -616,7 +616,7 @@ elif 0:
     in_sample_images, out_sample_images = next(val_generator)
 
 
-    checkpoint = ModelCheckpoint('best_dbpn2_x8.h5', monitor='val_loss', verbose=1, save_best_only=True, mode='min')
+    checkpoint = ModelCheckpoint('best_dbpn2_x2.h5', monitor='val_loss', verbose=1, save_best_only=True, mode='min')
 
     model.fit_generator(train_image_generator(config.batch_size, train_dir),
                         steps_per_epoch=config.steps_per_epoch,

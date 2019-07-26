@@ -770,19 +770,19 @@ def dbpn(input_shape, scale_ratio):
 
     def UpProj(l_in, num_filters, kernel_size=12):
 
-        h0 = Conv2DTranspose(num_filters,kernel_size=kernel_size,strides=(8,8),padding='same',
+        h0 = Conv2DTranspose(num_filters,kernel_size=kernel_size,strides=(scale_ratio,scale_ratio),padding='same',
                              kernel_initializer=test_initializer,
                              kernel_regularizer=l2(reg_scale))(l_in)
         h0 = PReLU(alpha_initializer='zero', shared_axes=[1, 2])(h0)
 
-        l0 = Conv2D(num_filters, kernel_size=kernel_size,strides=(8,8),padding='same',
+        l0 = Conv2D(num_filters, kernel_size=kernel_size,strides=(scale_ratio,scale_ratio),padding='same',
                            kernel_initializer=test_initializer,
                            kernel_regularizer=l2(reg_scale))(h0)
         l0 = PReLU(alpha_initializer='zero', shared_axes=[1, 2])(l0)
 
         e0 = subtract([l0, l_in])
 
-        h1 = Conv2DTranspose(num_filters, kernel_size=kernel_size, strides=(8, 8), padding='same',
+        h1 = Conv2DTranspose(num_filters, kernel_size=kernel_size, strides=(scale_ratio, scale_ratio), padding='same',
                              kernel_initializer=test_initializer,
                              kernel_regularizer=l2(reg_scale))(e0)
         h1 = PReLU(alpha_initializer='zero', shared_axes=[1, 2])(h1)
@@ -794,19 +794,19 @@ def dbpn(input_shape, scale_ratio):
     def DownProj(h_in, num_filters, kernel_size=12):
 
 
-        l0 = Conv2D(num_filters, kernel_size=kernel_size, strides=(8,8), padding='same',
+        l0 = Conv2D(num_filters, kernel_size=kernel_size, strides=(scale_ratio,scale_ratio), padding='same',
                     kernel_initializer=test_initializer,
                     kernel_regularizer=l2(reg_scale))(h_in)
         l0 = PReLU(alpha_initializer='zero', shared_axes=[1, 2])(l0)
 
-        h0 = Conv2DTranspose(num_filters, kernel_size=kernel_size, strides=(8, 8), padding='same',
+        h0 = Conv2DTranspose(num_filters, kernel_size=kernel_size, strides=(scale_ratio, scale_ratio), padding='same',
                              kernel_initializer=test_initializer,
                              kernel_regularizer=l2(reg_scale))(l0)
         h0 = PReLU(alpha_initializer='zero', shared_axes=[1, 2])(h0)
 
         e0 = subtract([h0, h_in])
 
-        l1 = Conv2D(num_filters, kernel_size=kernel_size, strides=(8,8), padding='same',
+        l1 = Conv2D(num_filters, kernel_size=kernel_size, strides=(scale_ratio,scale_ratio), padding='same',
                     kernel_initializer=test_initializer,
                     kernel_regularizer=l2(reg_scale))(e0)
         l1 = PReLU(alpha_initializer='zero', shared_axes=[1, 2])(l1)
