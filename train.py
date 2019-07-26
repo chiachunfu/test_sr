@@ -34,7 +34,7 @@ config.output_width = 256
 scale = 2
 val_dir = 'data/test'
 train_dir = 'data/train'
-train_test_dir = 'data/train_new'
+train_test_dir = 'data/train_new2'
 
 # automatically get the data if it doesn't exist
 if not os.path.exists("data"):
@@ -96,6 +96,65 @@ def img_augmentation():
         large_img_rot180_flip1.save(f_l.replace('-out.jpg', '7-out.jpg'))
         large_img_rot270_flip0.save(f_l.replace('-out.jpg', '8-out.jpg'))
         large_img_rot270_flip1.save(f_l.replace('-out.jpg', '9-out.jpg'))
+
+
+def img_augmentation2():
+    print('augmenting...')
+    import shutil
+    shutil.copytree('./data/train', './data/train_new2')
+    input_filenames = glob.glob('./data/train_new2' + "/*-in.jpg")
+    for f in input_filenames:
+        small_img = Image.open(f)
+        lr = Image.open(f)
+        # lr_rs = lr.resize((256,256))
+        hr = Image.open(f.replace("-in.jpg", "-out.jpg"))
+        lr_rs = lr.resize((256, 256), Image.BILINEAR)
+        pd_lr_rs = perceptual_distance_np(np.array(hr, dtype='float32'), np.array(lr_rs, dtype='float32'))
+        if pd_lr_rs > 90:
+            continue
+
+        small_img_rot90 = small_img.rotate(90)
+        small_img_rot180 = small_img.rotate(180)
+        small_img_rot270 = small_img.rotate(270)
+        small_img_rot90_flip0 = small_img_rot90.transpose(0)
+        small_img_rot90_flip1 = small_img_rot90.transpose(1)
+        small_img_rot180_flip0 = small_img_rot180.transpose(0)
+        small_img_rot180_flip1 = small_img_rot180.transpose(1)
+        small_img_rot270_flip0 = small_img_rot270.transpose(0)
+        small_img_rot270_flip1 = small_img_rot270.transpose(1)
+
+        small_img_rot90.save(f.replace('-in.jpg', '1-in.jpg'))
+        small_img_rot180.save(f.replace('-in.jpg', '2-in.jpg'))
+        small_img_rot270.save(f.replace('-in.jpg', '3-in.jpg'))
+        small_img_rot90_flip0.save(f.replace('-in.jpg', '4-in.jpg'))
+        small_img_rot90_flip1.save(f.replace('-in.jpg', '5-in.jpg'))
+        small_img_rot180_flip0.save(f.replace('-in.jpg', '6-in.jpg'))
+        small_img_rot180_flip1.save(f.replace('-in.jpg', '7-in.jpg'))
+        small_img_rot270_flip0.save(f.replace('-in.jpg', '8-in.jpg'))
+        small_img_rot270_flip1.save(f.replace('-in.jpg', '9-in.jpg'))
+
+        f_l = f.replace('-in.jpg', '-out.jpg')
+        large_img = Image.open(f_l)
+        large_img_rot90 = large_img.rotate(90)
+        large_img_rot180 = large_img.rotate(180)
+        large_img_rot270 = large_img.rotate(270)
+        large_img_rot90_flip0 = large_img_rot90.transpose(0)
+        large_img_rot90_flip1 = large_img_rot90.transpose(1)
+        large_img_rot180_flip0 = large_img_rot180.transpose(0)
+        large_img_rot180_flip1 = large_img_rot180.transpose(1)
+        large_img_rot270_flip0 = large_img_rot270.transpose(0)
+        large_img_rot270_flip1 = large_img_rot270.transpose(1)
+
+        large_img_rot90.save(f_l.replace('-out.jpg', '1-out.jpg'))
+        large_img_rot180.save(f_l.replace('-out.jpg', '2-out.jpg'))
+        large_img_rot270.save(f_l.replace('-out.jpg', '3-out.jpg'))
+        large_img_rot90_flip0.save(f_l.replace('-out.jpg', '4-out.jpg'))
+        large_img_rot90_flip1.save(f_l.replace('-out.jpg', '5-out.jpg'))
+        large_img_rot180_flip0.save(f_l.replace('-out.jpg', '6-out.jpg'))
+        large_img_rot180_flip1.save(f_l.replace('-out.jpg', '7-out.jpg'))
+        large_img_rot270_flip0.save(f_l.replace('-out.jpg', '8-out.jpg'))
+        large_img_rot270_flip1.save(f_l.replace('-out.jpg', '9-out.jpg'))
+
 
 
 def image_transform_rot_flip(img, rot_type, flip_type):
@@ -535,8 +594,8 @@ def get_weight_grad(model, inputs, outputs):
 
 def perceptual_distance_np(y_true, y_pred):
     """Calculate perceptual distance, DO NOT ALTER"""
-    y_true *= 255
-    y_pred *= 255
+    #y_true *= 255
+    #y_pred *= 255
     rmean = (y_true[ :, :, 0] + y_pred[ :, :, 0]) / 2
     r = y_true[ :, :, 0] - y_pred[ :, :, 0]
     g = y_true[ :, :, 1] - y_pred[ :, :, 1]
@@ -574,8 +633,8 @@ if 0:
                         #ImageLogger(), WandbCallback()],
                         validation_steps=config.val_steps_per_epoch,
                         validation_data=val_generator)
-elif 0:
-    #img_augmentation()
+elif 1:
+    img_augmentation2()
     model = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=2)
 
     opt = tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
@@ -587,7 +646,7 @@ elif 0:
     val_generator = image_generator(config.batch_size, val_dir)
     in_sample_images, out_sample_images = next(val_generator)
 
-    checkpoint = ModelCheckpoint('best_resnet_x2_aug.h5', monitor='val_loss', verbose=1, save_best_only=True,
+    checkpoint = ModelCheckpoint('best_resnet_x2_aug_new.h5', monitor='val_loss', verbose=1, save_best_only=True,
                                  mode='min')
     reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5,
                                   patience=5, min_lr=1e-7)

@@ -74,6 +74,33 @@ def BicubicUpscale(scale):
 
     return Lambda(bicubic)
 
+
+def BilinearUpscale(scale):
+    """
+    Keras layer to do subpixel convolution.
+    NOTE: Tensorflow backend only. Uses tf.depth_to_space
+    Ref:
+        [1] Real-Time Single Image and Video Super-Resolution Using an Efficient Sub-Pixel Convolutional Neural Network
+            Shi et Al.
+            https://arxiv.org/abs/1609.05158
+    :param input_shape: tensor shape, (batch, height, width, channel)
+    :param scale: upsampling scale. Default=4
+    :return:
+    """
+
+
+    def bilinear(input_img):
+        w = input_img.get_shape()[1]
+        h = input_img.get_shape()[2]
+        return tf.image.resize_bilinear(input_img, [w*scale, h*scale])
+
+        #return tf.image.resize_bicubic(x, output_shape)
+
+
+    return Lambda(bilinear)
+
+
+
 def resnet_layer(inputs,
                  num_filters=16,
                  filter_max=64,
