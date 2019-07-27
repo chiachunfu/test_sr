@@ -508,7 +508,7 @@ def sr_x2_concat(input_shape, gen_x2, gen_x4):
     #intermediate_layer_model = Model(inputs=x,
     #                                 outputs=gen_model.get_layer("out_0").output)
     #intermediate_output = intermediate_layer_model.predict(x,steps=1)
-    model = Model(inputs=inputs, outputs=gen_out2)
+    model = Model(inputs=inputs, outputs=[gen_out2,gen_out1])
     #model = Model(inputs=inputs, outputs=gen_out)
     return model
 
