@@ -853,8 +853,8 @@ elif 1:
     reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5,
                                   patience=5, min_lr=1e-7)
     # model.fit(X_train, Y_train, callbacks=[reduce_lr])
-    model.fit_generator(train_image_generator(config.batch_size, train_test_dir),
-                        steps_per_epoch=(len(glob.glob(train_test_dir + "/*-in.jpg") )// config.batch_size),
+    model.fit_generator(train_image_generator(config.batch_size, train_bad_dir),
+                        steps_per_epoch=(len(glob.glob(train_bad_dir + "/*-in.jpg") )// config.batch_size),
                         #steps_per_epoch=1,
                         epochs=config.num_epochs, callbacks=[
             # epochs = config.num_epochs, callbacks = [
