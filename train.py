@@ -334,7 +334,7 @@ def train_image_generator_x2(batch_size, img_dir):
 
             large_images[i] = np.array(large_image) / 255.0
             x2_images[i] = np.array(x2_image) / 255.0
-        yield (small_images, large_images,x2_images)
+        yield (small_images, [large_images,x2_images])
         counter += batch_size
 
 
@@ -568,7 +568,7 @@ def image_generator_x2(batch_size, img_dir):
             if not scale == 8:
                 large_image = large_image.resize((config.input_height*scale , config.input_height * scale),Image.BICUBIC)
             large_images[i] = np.array(large_image) / 255.0
-        yield (small_images, large_images, x2_images)
+        yield (small_images, [large_images, x2_images])
         counter += batch_size
 
 
@@ -805,7 +805,7 @@ elif 1:
                   metrics=[perceptual_distance, psnr, psnr_v2])
     print(model.summary())
     val_generator = image_generator_x2(config.batch_size, val_dir)
-    in_sample_images, out_sample_images, out_sample_imagesx2 = next(val_generator)
+    #in_sample_images, out_sample_images, out_sample_imagesx2 = next(val_generator)
 
     checkpoint = ModelCheckpoint('best_resnet_combined_aug_new.h5', monitor='val_loss', verbose=1, save_best_only=True,
                                  mode='min')
@@ -813,8 +813,8 @@ elif 1:
                                   patience=5, min_lr=1e-7)
     # model.fit(X_train, Y_train, callbacks=[reduce_lr])
     model.fit_generator(train_image_generator_x2(config.batch_size, train_test_dir),
-                        #steps_per_epoch=(len(glob.glob(train_test_dir + "/*-in.jpg") )// config.batch_size),
-                        steps_per_epoch=1,
+                        steps_per_epoch=(len(glob.glob(train_test_dir + "/*-in.jpg") )// config.batch_size),
+                        #steps_per_epoch=1,
                         epochs=config.num_epochs,
                         callbacks=[],
             # epochs = config.num_epochs, callbacks = [
