@@ -679,7 +679,7 @@ elif 1:
     #model_x8.load_weights('best_resnet_x2_aug_new.h5')
     #model_x8.compile(optimizer='adam', loss=custom_loss(),
     #                 metrics=[perceptual_distance, psnr, psnr_v2])
-    tf.keras.backend.clear_session()
+    #tf.keras.backend.clear_session()
 
     model = sr_x2_concat((config.input_width, config.input_height, 3),
                          model_x2,model_x4)
@@ -697,9 +697,10 @@ elif 1:
     model.fit_generator(train_image_generator(config.batch_size, train_test_dir),
                         #steps_per_epoch=(len(glob.glob(train_test_dir + "/*-in.jpg") )// config.batch_size),
                         steps_per_epoch=1,
-                        epochs=config.num_epochs, callbacks=[
+                        epochs=config.num_epochs,
+                        #callbacks=[
             # epochs = config.num_epochs, callbacks = [
-                        checkpoint, reduce_lr],
+                        #checkpoint, reduce_lr],
                         # ImageLogger(), WandbCallback()],
                         validation_steps=config.val_steps_per_epoch,
                         validation_data=val_generator)
