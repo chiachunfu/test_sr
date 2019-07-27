@@ -804,8 +804,8 @@ elif 1:
                   loss_weights=[1,1e-8],
                   metrics=[perceptual_distance, psnr, psnr_v2])
     print(model.summary())
-    val_generator = image_generator(config.batch_size, val_dir)
-    in_sample_images, out_sample_images = next(val_generator)
+    val_generator = image_generator_x2(config.batch_size, val_dir)
+    in_sample_images, out_sample_images, out_sample_imagesx2 = next(val_generator)
 
     checkpoint = ModelCheckpoint('best_resnet_combined_aug_new.h5', monitor='val_loss', verbose=1, save_best_only=True,
                                  mode='min')
