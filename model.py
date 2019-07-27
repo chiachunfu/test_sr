@@ -1123,9 +1123,9 @@ def sr_resnet_bilin(input_shape,scale_ratio):
         up_samp = Lambda(lambda x: x * res_scale)(up_samp)
     outputs = add([up_samp, up_samp_skip])
     #outputs = up_samp_skip
-
     # Instantiate model.
     model = Model(inputs=inputs, outputs=outputs)
+    print(model.summary())
     return model
 
 
