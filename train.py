@@ -315,7 +315,7 @@ def train_image_generator_x2(batch_size, img_dir):
                     # convert back to palette
                 else:
                     large_image = large_image.resize((config.input_width*scale, config.input_height*scale), Image.BILINEAR)  # regular resize
-            x2_image = large_image.resize((config.input_width * scale, config.input_height * scale),
+            x2_image = large_image.resize((config.input_width * 2, config.input_height * 2),
                                              Image.BILINEAR)  # regular resize
             #large_image = image_transform_rot_flip(large_image, rot_type, flip_type)
             #if is_syn:
@@ -767,7 +767,7 @@ elif 1:
     model.compile(optimizer='adam',
                   loss=[custom_loss(),custom_loss()],
                   loss_weights=[1,1e-8],
-                     metrics=[perceptual_distance, psnr, psnr_v2])
+                  metrics=[perceptual_distance, psnr, psnr_v2])
     print(model.summary())
     val_generator = image_generator(config.batch_size, val_dir)
     in_sample_images, out_sample_images = next(val_generator)
