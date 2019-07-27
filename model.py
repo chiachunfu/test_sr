@@ -771,7 +771,7 @@ def dbpn(input_shape, scale_ratio):
     test_initializer = 'he_normal'
     reg_scale = 0
     num_filters = 32
-    T = 4
+    T = 2
     feat_extract1 = Conv2D(256, kernel_size=3,strides=1,padding='same',
                            kernel_initializer=test_initializer,
                            kernel_regularizer=l2(reg_scale))(inputs)
@@ -787,19 +787,22 @@ def dbpn(input_shape, scale_ratio):
         h0 = Conv2DTranspose(num_filters,kernel_size=kernel_size,strides=(scale_ratio,scale_ratio),padding='same',
                              kernel_initializer=test_initializer,
                              kernel_regularizer=l2(reg_scale))(l_in)
-        h0 = PReLU(alpha_initializer='zero', shared_axes=[1, 2])(h0)
+        #h0 = PReLU(alpha_initializer='zero', shared_axes=[1, 2])(h0)
+        h0 = LeakyReLU(alpha=0.01)(h0)
 
         l0 = Conv2D(num_filters, kernel_size=kernel_size,strides=(scale_ratio,scale_ratio),padding='same',
                            kernel_initializer=test_initializer,
                            kernel_regularizer=l2(reg_scale))(h0)
-        l0 = PReLU(alpha_initializer='zero', shared_axes=[1, 2])(l0)
+        #l0 = PReLU(alpha_initializer='zero', shared_axes=[1, 2])(l0)
+        l0 = LeakyReLU(alpha=0.01)(l0)
 
         e0 = subtract([l0, l_in])
 
         h1 = Conv2DTranspose(num_filters, kernel_size=kernel_size, strides=(scale_ratio, scale_ratio), padding='same',
                              kernel_initializer=test_initializer,
                              kernel_regularizer=l2(reg_scale))(e0)
-        h1 = PReLU(alpha_initializer='zero', shared_axes=[1, 2])(h1)
+        #h1 = PReLU(alpha_initializer='zero', shared_axes=[1, 2])(h1)
+        h1 = LeakyReLU(alpha=0.01)(h1)
 
         out = add([h1, h0])
 
@@ -811,19 +814,22 @@ def dbpn(input_shape, scale_ratio):
         l0 = Conv2D(num_filters, kernel_size=kernel_size, strides=(scale_ratio,scale_ratio), padding='same',
                     kernel_initializer=test_initializer,
                     kernel_regularizer=l2(reg_scale))(h_in)
-        l0 = PReLU(alpha_initializer='zero', shared_axes=[1, 2])(l0)
+        #l0 = PReLU(alpha_initializer='zero', shared_axes=[1, 2])(l0)
+        l0 = LeakyReLU(alpha=0.01)(l0)
 
         h0 = Conv2DTranspose(num_filters, kernel_size=kernel_size, strides=(scale_ratio, scale_ratio), padding='same',
                              kernel_initializer=test_initializer,
                              kernel_regularizer=l2(reg_scale))(l0)
-        h0 = PReLU(alpha_initializer='zero', shared_axes=[1, 2])(h0)
+        #h0 = PReLU(alpha_initializer='zero', shared_axes=[1, 2])(h0)
+        h0 = LeakyReLU(alpha=0.01)(h0)
 
         e0 = subtract([h0, h_in])
 
         l1 = Conv2D(num_filters, kernel_size=kernel_size, strides=(scale_ratio,scale_ratio), padding='same',
                     kernel_initializer=test_initializer,
                     kernel_regularizer=l2(reg_scale))(e0)
-        l1 = PReLU(alpha_initializer='zero', shared_axes=[1, 2])(l1)
+        #l1 = PReLU(alpha_initializer='zero', shared_axes=[1, 2])(l1)
+        l1 = LeakyReLU(alpha=0.01)(l1)
 
         out = add([l1, l0])
 
