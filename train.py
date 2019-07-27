@@ -902,7 +902,7 @@ elif 1:
                         steps_per_epoch=(len(glob.glob(train_test_dir + "/*-in.jpg") )// config.batch_size),
                         #steps_per_epoch=1,
                         epochs=config.num_epochs,
-                        callbacks=[,
+                        callbacks=[
             # epochs = config.num_epochs, callbacks = [
                         checkpoint, reduce_lr],
                         # ImageLogger(), WandbCallback()],
