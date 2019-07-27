@@ -307,6 +307,9 @@ def train_image_generator_x2(batch_size, img_dir):
             #    blur_radius = np.random.choice(4,1,p=[0.6, 0.25, 0.1, 0.05])[0] / 2 + 0.5
             #    small_img = small_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
             large_image = Image.open(img.replace("-in.jpg", "-out.jpg"))
+            x2_image = large_image.resize((config.input_width * 2, config.input_height * 2),
+                                          Image.BILINEAR)  # regular resize
+
             if not scale == 8:
                 if 'P' in large_image.mode:  # check if image is a palette type
                     large_image = large_image.convert("RGB")  # convert it to RGB
@@ -315,8 +318,6 @@ def train_image_generator_x2(batch_size, img_dir):
                     # convert back to palette
                 else:
                     large_image = large_image.resize((config.input_width*scale, config.input_height*scale), Image.BILINEAR)  # regular resize
-            x2_image = large_image.resize((config.input_width * 2, config.input_height * 2),
-                                             Image.BILINEAR)  # regular resize
             #large_image = image_transform_rot_flip(large_image, rot_type, flip_type)
             #if is_syn:
             #    blur_radius = random.randint(0, 9) / 10
@@ -534,6 +535,40 @@ def image_generator(batch_size, img_dir):
                 large_image = large_image.resize((config.input_height*scale , config.input_height * scale),Image.BICUBIC)
             large_images[i] = np.array(large_image) / 255.0
         yield (small_images, large_images)
+        counter += batch_size
+
+
+
+def image_generator_x2(batch_size, img_dir):
+    """A generator that returns small images and large images.  DO NOT ALTER the validation set"""
+    input_filenames = glob.glob(img_dir + "/*-in.jpg")
+    counter = 0
+    while True:
+        small_images = np.zeros(
+            (batch_size, config.input_width, config.input_height, 3))
+        large_images = np.zeros(
+            (batch_size, config.output_width, config.output_height, 3))
+        large_images = np.zeros(
+            (batch_size, config.input_width*scale, config.input_height*scale, 3))
+        x2_images = np.zeros(
+            (batch_size, config.input_width * scale, config.input_height * scale, 3))
+        random.shuffle(input_filenames)
+        if counter+batch_size >= len(input_filenames):
+            counter = 0
+
+        for i in range(batch_size):
+            type = random.randint(0, 5) #augment option
+            img = input_filenames[counter + i]
+            #print(img)
+            small_img = Image.open(img)
+            small_images[i] = np.array(small_img) / 255.0
+            large_image = Image.open(img.replace("-in.jpg", "-out.jpg"))
+            x2_image = large_image.resize((config.input_height * 2, config.input_height * 2), Image.BICUBIC)
+            x2_images[i] = np.array(x2_image) / 255.0
+            if not scale == 8:
+                large_image = large_image.resize((config.input_height*scale , config.input_height * scale),Image.BICUBIC)
+            large_images[i] = np.array(large_image) / 255.0
+        yield (small_images, large_images, x2_images)
         counter += batch_size
 
 
