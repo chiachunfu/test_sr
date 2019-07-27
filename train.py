@@ -551,7 +551,7 @@ def image_generator_x2(batch_size, img_dir):
         large_images = np.zeros(
             (batch_size, config.input_width*scale, config.input_height*scale, 3))
         x2_images = np.zeros(
-            (batch_size, config.input_width * scale, config.input_height * scale, 3))
+            (batch_size, config.input_width * 2, config.input_height * 2, 3))
         random.shuffle(input_filenames)
         if counter+batch_size >= len(input_filenames):
             counter = 0
