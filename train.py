@@ -257,6 +257,87 @@ def train_image_generator(batch_size, img_dir):
         yield (small_images, large_images)
         counter += batch_size
 
+
+def train_image_generator_x2(batch_size, img_dir):
+    """A generator that returns small images and large images.  DO NOT ALTER the validation set"""
+    input_filenames = glob.glob(img_dir + "/*-in.jpg")
+    counter = 0
+    while True:
+        small_images = np.zeros(
+            (batch_size, config.input_width, config.input_height, 3))
+        large_images = np.zeros(
+            (batch_size, config.output_width, config.output_height, 3))
+        x2_images = np.zeros(
+            (batch_size, config.input_width*2, config.input_height*2, 3))
+        large_images = np.zeros(
+            (batch_size, config.input_width * scale, config.input_height * scale, 3))
+        random.shuffle(input_filenames)
+        if counter+batch_size >= len(input_filenames):
+            counter = 0
+        #carnation_cnt = 0
+        carnation_check = 1
+        while carnation_check:
+            carnation_cnt = 0
+            for i in range(batch_size):
+                f = input_filenames[counter+i]
+                if re.search('-carnation',f):
+                    carnation_cnt += 1
+            if carnation_cnt >= int(batch_size / 4):
+                temp = input_filenames[counter:len(input_filenames)]
+                random.shuffle(temp)
+                input_filenames[counter:len(input_filenames)] = temp
+            else:
+                carnation_check = 0
+        for i in range(batch_size):
+            #rot_type = random.randint(0, 3) #augment option
+            #flip_type = random.randint(0, 2) #augment option
+            #flip_type = random.randint(0, 2) #augment option
+            img = input_filenames[counter + i]
+            #color_shuffle = random.randint(0, 1) #augment option
+            #is_syn = np.random.choice(2,1,p=[0.75, 0.25])[0]
+            #print(img)
+            #if not is_syn:
+            small_img = Image.open(img)
+            #small_img = image_transform_rot_flip(small_img, rot_type, flip_type)
+            ##if color_shuffle:
+            #    rgb = [0,1,2]
+            #    np.random.shuffle(rgb)
+            #add_blur = np.random.choice(2,1,p=[0.75, 0.25])[0]
+            #if add_blur and 0:
+            #    blur_radius = np.random.choice(4,1,p=[0.6, 0.25, 0.1, 0.05])[0] / 2 + 0.5
+            #    small_img = small_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+            large_image = Image.open(img.replace("-in.jpg", "-out.jpg"))
+            if not scale == 8:
+                if 'P' in large_image.mode:  # check if image is a palette type
+                    large_image = large_image.convert("RGB")  # convert it to RGB
+                    large_image = large_image.resize((config.input_width*scale, config.input_height*scale), Image.BILINEAR)  # resize it
+                    large_image = large_image.convert("P", dither=Image.NONE, palette=Image.ADAPTIVE)
+                    # convert back to palette
+                else:
+                    large_image = large_image.resize((config.input_width*scale, config.input_height*scale), Image.BILINEAR)  # regular resize
+            x2_image = large_image.resize((config.input_width * scale, config.input_height * scale),
+                                             Image.BILINEAR)  # regular resize
+            #large_image = image_transform_rot_flip(large_image, rot_type, flip_type)
+            #if is_syn:
+            #    blur_radius = random.randint(0, 9) / 10
+            #    small_img = large_image.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+            #    small_img = small_img.resize((config.input_width,config.input_height),Image.NEAREST)
+
+            #if color_shuffle:
+            #    rgb = [0,1,2]
+            #    np.random.shuffle(rgb)
+            #    small_img = np.array(small_img)[:,:,rgb]
+            #    large_image = np.array(large_image)[:,:,rgb]
+
+            small_images[i] = np.array(small_img) / 255.0
+
+            large_images[i] = np.array(large_image) / 255.0
+            x2_images[i] = np.array(x2_image) / 255.0
+        yield (small_images, large_images,x2_images)
+        counter += batch_size
+
+
+
 def train_image_generator1(batch_size, files):
     """A generator that returns small images and large images.  DO NOT ALTER the validation set"""
     input_filenames = files
@@ -683,7 +764,9 @@ elif 1:
 
     model = sr_x2_concat((config.input_width, config.input_height, 3),
                          model_x2,model_x4)
-    model.compile(optimizer='adam', loss=custom_loss(),
+    model.compile(optimizer='adam',
+                  loss=[custom_loss(),custom_loss()],
+                  loss_weights=[1,1e-8],
                      metrics=[perceptual_distance, psnr, psnr_v2])
     print(model.summary())
     val_generator = image_generator(config.batch_size, val_dir)
@@ -694,7 +777,7 @@ elif 1:
     reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5,
                                   patience=5, min_lr=1e-7)
     # model.fit(X_train, Y_train, callbacks=[reduce_lr])
-    model.fit_generator(train_image_generator(config.batch_size, train_test_dir),
+    model.fit_generator(train_image_generator_x2(config.batch_size, train_test_dir),
                         #steps_per_epoch=(len(glob.glob(train_test_dir + "/*-in.jpg") )// config.batch_size),
                         steps_per_epoch=1,
                         epochs=config.num_epochs,
