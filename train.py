@@ -31,7 +31,7 @@ config.input_height = 32
 config.input_width = 32
 config.output_height = 256
 config.output_width = 256
-scale = 4
+scale = 2
 val_dir = 'data/test'
 train_dir = 'data/train'
 train_test_dir = 'data/train_new2'
@@ -836,7 +836,7 @@ elif 0:
                         validation_steps=config.val_steps_per_epoch,
                         validation_data=val_generator)
 elif 1:
-    img_augmentation3()
+    #img_augmentation3()
     model = dbpn(input_shape=(config.input_width, config.input_height, 3), scale_ratio=2)
 
     opt = tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
