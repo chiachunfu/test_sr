@@ -5,7 +5,7 @@ import os
 from PIL import Image, ImageFilter
 import numpy as np
 import tensorflow as tf
-from model import sr_resnet, sr_prosr_rcan,sr_discriminator, sr_gan_test, resnet_model, preprocess_resnet, vgg19_model, sr_resnet_test, sr_combine, sr_x2_check,sr_prosr_rcan_test,sr_x2_check2,sr_prosr_rcan_upsample, sr_resnet84, dbpn,sr_resnet_simp
+from model import sr_resnet, sr_prosr_rcan,sr_discriminator, sr_gan_test, resnet_model, preprocess_resnet, vgg19_model, sr_resnet_test, sr_resnet_bilin, sr_combine, sr_x2_check,sr_prosr_rcan_test,sr_x2_check2,sr_prosr_rcan_upsample, sr_resnet84, dbpn,sr_resnet_simp,sr_x2_concat
 import re
 from tensorflow.keras import backend as K
 
@@ -31,7 +31,7 @@ config.input_height = 32
 config.input_width = 32
 config.output_height = 256
 config.output_width = 256
-scale = 2
+scale = 4
 val_dir = 'data/test'
 train_dir = 'data/train'
 train_test_dir = 'data/train_new2'
@@ -231,14 +231,14 @@ def train_image_generator(batch_size, img_dir):
             #    blur_radius = np.random.choice(4,1,p=[0.6, 0.25, 0.1, 0.05])[0] / 2 + 0.5
             #    small_img = small_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
             large_image = Image.open(img.replace("-in.jpg", "-out.jpg"))
-            if 1:
+            if not scale == 8:
                 if 'P' in large_image.mode:  # check if image is a palette type
                     large_image = large_image.convert("RGB")  # convert it to RGB
-                    large_image = large_image.resize((config.input_width*2, config.input_height*2), Image.BILINEAR)  # resize it
+                    large_image = large_image.resize((config.input_width*scale, config.input_height*scale), Image.BILINEAR)  # resize it
                     large_image = large_image.convert("P", dither=Image.NONE, palette=Image.ADAPTIVE)
                     # convert back to palette
                 else:
-                    large_image = large_image.resize((config.input_width*2, config.input_height*2), Image.BILINEAR)  # regular resize
+                    large_image = large_image.resize((config.input_width*scale, config.input_height*scale), Image.BILINEAR)  # regular resize
             #large_image = image_transform_rot_flip(large_image, rot_type, flip_type)
             #if is_syn:
             #    blur_radius = random.randint(0, 9) / 10
@@ -633,8 +633,79 @@ if 0:
                         #ImageLogger(), WandbCallback()],
                         validation_steps=config.val_steps_per_epoch,
                         validation_data=val_generator)
+elif 0:
+    #img_augmentation2()
+    model = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=2)
+
+    opt = tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
+
+    # DONT ALTER metrics=[perceptual_distance]
+    model.compile(optimizer='adam', loss=custom_loss(),
+                  metrics=[perceptual_distance, psnr, psnr_v2])
+    print(model.summary())
+    val_generator = image_generator(config.batch_size, val_dir)
+    in_sample_images, out_sample_images = next(val_generator)
+
+    checkpoint = ModelCheckpoint('best_resnet_x2_aug_new.h5', monitor='val_loss', verbose=1, save_best_only=True,
+                                 mode='min')
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5,
+                                  patience=5, min_lr=1e-7)
+    # model.fit(X_train, Y_train, callbacks=[reduce_lr])
+    model.fit_generator(train_image_generator(config.batch_size, train_test_dir),
+                        steps_per_epoch=(len(glob.glob(train_test_dir + "/*-in.jpg") )// config.batch_size),
+                        #steps_per_epoch=1,
+                        epochs=config.num_epochs, callbacks=[
+            # epochs = config.num_epochs, callbacks = [
+                        checkpoint, reduce_lr],
+                        # ImageLogger(), WandbCallback()],
+                        validation_steps=config.val_steps_per_epoch,
+                        validation_data=val_generator)
+
 elif 1:
-    img_augmentation2()
+    #img_augmentation2()
+    model_x2 = sr_resnet_bilin(input_shape=(config.input_width, config.input_height, 3), scale_ratio=2)
+
+    opt = tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
+    model_x2.load_weights('best_resnet_x2_aug_new.h5')
+    model_x2.trainable = False
+    # DONT ALTER metrics=[perceptual_distance]
+    model_x2.compile(optimizer='adam', loss=custom_loss(),
+                  metrics=[perceptual_distance, psnr, psnr_v2])
+
+    model_x4 = sr_resnet_bilin(input_shape=(config.input_width*2, config.input_height*2, 3), scale_ratio=2)
+    model_x4.load_weights('best_resnet_x2_aug_new.h5')
+    model_x4.compile(optimizer='adam', loss=custom_loss(),
+                     metrics=[perceptual_distance, psnr, psnr_v2])
+    #model_x8 = sr_resnet_bilin(input_shape=(config.input_width*2, config.input_height*2, 3), scale_ratio=2)
+    #model_x8.load_weights('best_resnet_x2_aug_new.h5')
+    #model_x8.compile(optimizer='adam', loss=custom_loss(),
+    #                 metrics=[perceptual_distance, psnr, psnr_v2])
+
+    model = sr_x2_concat((config.input_width, config.input_height, 3),
+                         model_x2,model_x4)
+    model.compile(optimizer='adam', loss=custom_loss(),
+                     metrics=[perceptual_distance, psnr, psnr_v2])
+    print(model.summary())
+    val_generator = image_generator(config.batch_size, val_dir)
+    in_sample_images, out_sample_images = next(val_generator)
+
+    checkpoint = ModelCheckpoint('best_resnet_combined_aug_new.h5', monitor='val_loss', verbose=1, save_best_only=True,
+                                 mode='min')
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5,
+                                  patience=5, min_lr=1e-7)
+    # model.fit(X_train, Y_train, callbacks=[reduce_lr])
+    model.fit_generator(train_image_generator(config.batch_size, train_test_dir),
+                        #steps_per_epoch=(len(glob.glob(train_test_dir + "/*-in.jpg") )// config.batch_size),
+                        steps_per_epoch=1,
+                        epochs=config.num_epochs, callbacks=[
+            # epochs = config.num_epochs, callbacks = [
+                        checkpoint, reduce_lr],
+                        # ImageLogger(), WandbCallback()],
+                        validation_steps=config.val_steps_per_epoch,
+                        validation_data=val_generator)
+
+elif 1:
+    #img_augmentation2()
     model = sr_resnet(input_shape=(config.input_width, config.input_height, 3), scale_ratio=2)
 
     opt = tf.keras.optimizers.Adam(lr=0.001, decay=0.9)
