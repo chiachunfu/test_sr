@@ -671,7 +671,6 @@ elif 1:
     # DONT ALTER metrics=[perceptual_distance]
     model_x2.compile(optimizer='adam', loss=custom_loss(),
                   metrics=[perceptual_distance, psnr, psnr_v2])
-
     model_x4 = sr_resnet_bilin(input_shape=(config.input_width*2, config.input_height*2, 3), scale_ratio=2)
     model_x4.load_weights('best_resnet_x2_aug_new.h5')
     model_x4.compile(optimizer='adam', loss=custom_loss(),
@@ -680,6 +679,7 @@ elif 1:
     #model_x8.load_weights('best_resnet_x2_aug_new.h5')
     #model_x8.compile(optimizer='adam', loss=custom_loss(),
     #                 metrics=[perceptual_distance, psnr, psnr_v2])
+    tf.keras.backend.clear_session()
 
     model = sr_x2_concat((config.input_width, config.input_height, 3),
                          model_x2,model_x4)
